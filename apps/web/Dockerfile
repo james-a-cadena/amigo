@@ -9,6 +9,7 @@ WORKDIR /app
 # Copy workspace configuration
 COPY package.json bun.lockb* ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/
