@@ -19,3 +19,6 @@ export const db = drizzle(client, { schema });
 export type Database = typeof db;
 
 export * from "./schema";
+
+// Re-export commonly used drizzle-orm operators
+export { desc, asc, eq, ne, gt, gte, lt, lte, isNull, isNotNull, and, or, sql } from "drizzle-orm";
