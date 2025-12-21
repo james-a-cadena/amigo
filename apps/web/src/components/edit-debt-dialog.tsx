@@ -1,35 +1,42 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addDebt } from "@/actions/debts";
+import { updateDebt } from "@/actions/debts";
+import type { Debt } from "@amigo/db";
 
 type DebtTab = "LOAN" | "CREDIT_CARD";
 
-export function AddDebtDialog() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<DebtTab>("LOAN");
+interface EditDebtDialogProps {
+  debt: Debt;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<DebtTab>(debt.type as DebtTab);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  // Loan fields
-  const [loanName, setLoanName] = useState("");
-  const [loanAmount, setLoanAmount] = useState("");
-  const [totalPaid, setTotalPaid] = useState("");
+  // Initialize form values from debt prop
+  const [loanName, setLoanName] = useState(
+    debt.type === "LOAN" ? debt.name : ""
+  );
+  const [loanAmount, setLoanAmount] = useState(
+    debt.type === "LOAN" ? debt.balanceInitial : ""
+  );
+  const [totalPaid, setTotalPaid] = useState(
+    debt.type === "LOAN" ? debt.balanceCurrent : ""
+  );
 
-  // Credit card fields
-  const [ccName, setCcName] = useState("");
-  const [creditLimit, setCreditLimit] = useState("");
-  const [availableCredit, setAvailableCredit] = useState("");
-
-  const resetForm = () => {
-    setLoanName("");
-    setLoanAmount("");
-    setTotalPaid("");
-    setCcName("");
-    setCreditLimit("");
-    setAvailableCredit("");
-    setError(null);
-  };
+  const [ccName, setCcName] = useState(
+    debt.type === "CREDIT_CARD" ? debt.name : ""
+  );
+  const [creditLimit, setCreditLimit] = useState(
+    debt.type === "CREDIT_CARD" ? debt.balanceInitial : ""
+  );
+  const [availableCredit, setAvailableCredit] = useState(
+    debt.type === "CREDIT_CARD" ? debt.balanceCurrent : ""
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,49 +45,34 @@ export function AddDebtDialog() {
     startTransition(async () => {
       try {
         if (activeTab === "LOAN") {
-          await addDebt({
+          await updateDebt(debt.id, {
             type: "LOAN",
             name: loanName,
             loanAmount: parseFloat(loanAmount),
             totalPaid: parseFloat(totalPaid) || 0,
           });
         } else {
-          await addDebt({
+          await updateDebt(debt.id, {
             type: "CREDIT_CARD",
             name: ccName,
             creditLimit: parseFloat(creditLimit),
             availableCredit: parseFloat(availableCredit),
           });
         }
-        resetForm();
-        setIsOpen(false);
+        onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to add debt");
+        setError(err instanceof Error ? err.message : "Failed to update debt");
       }
     });
   };
-
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        Add Debt
-      </button>
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-xl border">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Add Debt</h2>
+          <h2 className="text-xl font-semibold">Edit Debt</h2>
           <button
-            onClick={() => {
-              resetForm();
-              setIsOpen(false);
-            }}
+            onClick={onClose}
             className="text-muted-foreground hover:text-foreground"
           >
             <svg
@@ -137,13 +129,13 @@ export function AddDebtDialog() {
             <>
               <div>
                 <label
-                  htmlFor="loanName"
+                  htmlFor="editLoanName"
                   className="mb-1 block text-sm font-medium"
                 >
                   Loan Name
                 </label>
                 <input
-                  id="loanName"
+                  id="editLoanName"
                   type="text"
                   value={loanName}
                   onChange={(e) => setLoanName(e.target.value)}
@@ -154,15 +146,17 @@ export function AddDebtDialog() {
               </div>
               <div>
                 <label
-                  htmlFor="loanAmount"
+                  htmlFor="editLoanAmount"
                   className="mb-1 block text-sm font-medium"
                 >
                   Loan Amount
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-2 text-muted-foreground">
+                    $
+                  </span>
                   <input
-                    id="loanAmount"
+                    id="editLoanAmount"
                     type="number"
                     min="0"
                     step="0.01"
@@ -176,15 +170,17 @@ export function AddDebtDialog() {
               </div>
               <div>
                 <label
-                  htmlFor="totalPaid"
+                  htmlFor="editTotalPaid"
                   className="mb-1 block text-sm font-medium"
                 >
                   Total Paid
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-2 text-muted-foreground">
+                    $
+                  </span>
                   <input
-                    id="totalPaid"
+                    id="editTotalPaid"
                     type="number"
                     min="0"
                     step="0.01"
@@ -203,13 +199,13 @@ export function AddDebtDialog() {
             <>
               <div>
                 <label
-                  htmlFor="ccName"
+                  htmlFor="editCcName"
                   className="mb-1 block text-sm font-medium"
                 >
                   Card Name
                 </label>
                 <input
-                  id="ccName"
+                  id="editCcName"
                   type="text"
                   value={ccName}
                   onChange={(e) => setCcName(e.target.value)}
@@ -220,15 +216,17 @@ export function AddDebtDialog() {
               </div>
               <div>
                 <label
-                  htmlFor="creditLimit"
+                  htmlFor="editCreditLimit"
                   className="mb-1 block text-sm font-medium"
                 >
                   Credit Limit
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-2 text-muted-foreground">
+                    $
+                  </span>
                   <input
-                    id="creditLimit"
+                    id="editCreditLimit"
                     type="number"
                     min="0"
                     step="0.01"
@@ -242,15 +240,17 @@ export function AddDebtDialog() {
               </div>
               <div>
                 <label
-                  htmlFor="availableCredit"
+                  htmlFor="editAvailableCredit"
                   className="mb-1 block text-sm font-medium"
                 >
                   Available Credit
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-2 text-muted-foreground">
+                    $
+                  </span>
                   <input
-                    id="availableCredit"
+                    id="editAvailableCredit"
                     type="number"
                     min="0"
                     step="0.01"
@@ -271,10 +271,7 @@ export function AddDebtDialog() {
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={() => {
-                resetForm();
-                setIsOpen(false);
-              }}
+              onClick={onClose}
               className="flex-1 rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent"
             >
               Cancel
@@ -288,11 +285,20 @@ export function AddDebtDialog() {
                   : "bg-purple-600 hover:bg-purple-700"
               }`}
             >
-              {isPending ? "Adding..." : "Add"}
+              {isPending ? "Saving..." : "Save"}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
+}
+
+export function EditDebtDialog({ debt, isOpen, onClose }: EditDebtDialogProps) {
+  if (!isOpen) {
+    return null;
+  }
+
+  // Using key to reset form state when debt changes
+  return <EditDebtForm key={debt.id} debt={debt} onClose={onClose} />;
 }

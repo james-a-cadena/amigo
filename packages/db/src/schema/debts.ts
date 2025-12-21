@@ -7,6 +7,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { households } from "./households";
+import { users } from "./users";
 
 export const debtTypeEnum = pgEnum("debt_type", ["LOAN", "CREDIT_CARD"]);
 
@@ -15,6 +16,9 @@ export const debts = pgTable("debts", {
   householdId: uuid("household_id")
     .notNull()
     .references(() => households.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   type: debtTypeEnum("type").notNull(),
   // For LOAN: Loan Amount | For CREDIT_CARD: Credit Limit

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-amigo is a self-hosted household budgeting application with grocery tracking for `cadenalabs.net`. It's a TypeScript monorepo using Turborepo, deployed on Proxmox via Docker + Tailscale.
+amigo is a self-hosted household management application for 2 users (James (AKA - Jaime) and Valentina). It's a TypeScript monorepo using Turborepo, deployed on Proxmox via Docker + Tailscale.
 
 ## Tech Stack
 
@@ -36,8 +36,10 @@ bun run lint
 bun run typecheck
 bun audit
 
-# Docker (production)
-docker compose -f docker-compose.prod.yaml up -d
+# Production Operations (Makefile)
+make prod-up       # Start production stack
+make prod-logs     # View production logs
+make deploy        # Pull, Build, and Restart
 ```
 
 ## Project Structure
@@ -74,18 +76,18 @@ Always modify `packages/db/schema` first, then regenerate types. Never manually 
 
 ### Hybrid Data Access Pattern
 
-| Context           | Access Method                     | Why                              |
-| ----------------- | --------------------------------- | -------------------------------- |
-| Server Components | Direct DB via `@amigo/db`         | Lowest latency, no HTTP overhead |
-| Client Components | Hono RPC client                   | Type-safe fetching for browser   |
-| Mutations         | Server Actions and Valkey publish | Direct DB write, then broadcast  |
+| Context | Access Method | Why |
+| --- | --- | --- |
+| Server Components | Direct DB via `@amigo/db` | Lowest latency, no HTTP overhead |
+| Client Components | Hono RPC client | Type-safe fetching for browser |
+| Mutations | Server Actions and Valkey publish | Direct DB write, then broadcast |
 
 ### Code Organization
 
-- Server Components import `@amigo/db` directly for reads
-- Client Components use `@amigo/api` RPC client for reads
-- Server Actions import `@amigo/db` directly, publish to Valkey for real-time sync
-- Hono (`apps/api`) handles WebSockets and delta sync only
+* Server Components import `@amigo/db` directly for reads
+* Client Components use `@amigo/api` RPC client for reads
+* Server Actions import `@amigo/db` directly, publish to Valkey for real-time sync
+* Hono (`apps/api`) handles WebSockets and delta sync only
 
 ### Multi-tenancy
 
@@ -93,13 +95,13 @@ Row-Level Security (RLS) enforced at database level using `household_id` on all 
 
 ## Key Patterns
 
-- **Optimistic UI:** Grocery list uses React 19's `useOptimistic` for instant feedback
-- **Real-time:** Server Action → Valkey pub → Hono subscription → WebSocket broadcast
-- **Delta Sync:** Reconnection fetches only records where `updated_at > lastSyncTimestamp`
-- **Soft Deletes:** Tables use `deleted_at` column for delta sync compatibility
+* **Optimistic UI:** Grocery list uses React 19's `useOptimistic` for instant feedback
+* **Real-time:** Server Action → Valkey pub → Hono subscription → WebSocket broadcast
+* **Delta Sync:** Reconnection fetches only records where `updated_at > lastSyncTimestamp`
+* **Soft Deletes:** Tables use `deleted_at` column for delta sync compatibility
 
 ## Domain
 
-- **Prod:** `amigo.cadenalabs.net`
-- **Dev:** `dev-amigo.cadenalabs.net`
-- **Cookie scope:** `.cadenalabs.net`
+* **Prod:** `amigo.cadenalabs.net`
+* **Dev:** `dev-amigo.cadenalabs.net`
+* **Cookie scope:** `.cadenalabs.net`

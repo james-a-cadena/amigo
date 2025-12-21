@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Household Management** (Phase 13)
+  - Server action `updateHouseholdName` with Zod validation (min 2 chars)
+  - `RenameHouseholdDialog` component with pencil icon trigger
+  - Editable household name on Settings page
+
+- **Personal Debt Privacy** (Phase 14)
+  - Added `userId` column to `debts` table for per-user ownership
+  - Debts are now private to the user who created them
+  - Updated all debt queries and mutations to filter by `userId`
+  - Household members cannot see each other's financial data
+
+- **Settings Page Enhancements** (Phase 12)
+  - Household Info card with editable name and read-only ID
+  - Theme Preference toggle (Light/Dark/System)
+  - App Info card with version (v0.1.0) and logged-in user details
+  - Hydration-safe `SettingsThemeToggle` component
+
+- **Dark Mode Support** (Phase 10)
+  - `next-themes` integration with system preference detection
+  - Theme toggle in navigation bar dropdown
+  - CSS variables for consistent theming across all components
+
+- **Global Confirmation System** (Phase 11)
+  - Reusable `AlertDialog` component from Shadcn/UI
+  - Delete confirmations for debts and grocery items
+  - Consistent styling with CSS variable overrides for Radix portals
+
 - **Authelia OIDC Integration**: Complete authentication flow using OpenID Connect with PKCE
   - Login route (`/api/auth/login`) with PKCE code challenge generation
   - Callback route (`/api/auth/callback`) handling token exchange and user provisioning

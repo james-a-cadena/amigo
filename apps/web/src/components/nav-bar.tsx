@@ -13,6 +13,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { ModeToggle } from "./mode-toggle";
 
 interface NavBarProps {
   userName: string | null;
@@ -34,12 +35,12 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
   const displayName = userName ?? userEmail;
 
   return (
-    <nav className="border-b bg-white">
+    <nav className="border-b bg-background">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/budget" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-blue-600">amigo</span>
+            <span className="text-xl font-bold text-primary">amigo</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -53,8 +54,8 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
                   href={link.href}
                   className={`flex items-center gap-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? "text-blue-600"
-                      : "text-gray-600 hover:text-gray-900"
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -64,56 +65,59 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
             })}
           </div>
 
-          {/* User Profile Dropdown (Desktop) */}
-          <div className="hidden md:block relative">
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <span className="max-w-[150px] truncate">{displayName}</span>
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${
-                  isProfileOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {isProfileOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setIsProfileOpen(false)}
-                />
-                <div className="absolute right-0 z-20 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-                  <div className="px-4 py-3 border-b">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {userName ?? "User"}
-                    </p>
-                    <p className="text-sm text-gray-500 truncate">
-                      {userEmail}
-                    </p>
-                  </div>
-                  <div className="py-1">
-                    <a
-                      href="/api/auth/logout"
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sign out
-                    </a>
-                  </div>
+          {/* Theme Toggle & User Profile (Desktop) */}
+          <div className="hidden md:flex md:items-center md:gap-2">
+            <ModeToggle />
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  {displayName.charAt(0).toUpperCase()}
                 </div>
-              </>
-            )}
+                <span className="max-w-[150px] truncate">{displayName}</span>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${
+                    isProfileOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {isProfileOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsProfileOpen(false)}
+                  />
+                  <div className="absolute right-0 z-20 mt-2 w-56 origin-top-right rounded-md bg-popover shadow-lg ring-1 ring-border">
+                    <div className="px-4 py-3 border-b">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {userName ?? "User"}
+                      </p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {userEmail}
+                      </p>
+                    </div>
+                    <div className="py-1">
+                      <a
+                        href="/api/auth/logout"
+                        className="flex w-full items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </a>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden rounded-md p-2 text-gray-600 hover:bg-gray-100"
+            className="md:hidden rounded-md p-2 text-muted-foreground hover:bg-accent"
           >
             {isMobileMenuOpen ? (
               <X className="h-6 w-6" />
@@ -137,8 +141,8 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${
                       isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        ? "bg-accent text-primary"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     }`}
                   >
                     <Icon className="h-5 w-5" />
@@ -148,15 +152,18 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
               })}
             </div>
             <div className="mt-4 border-t pt-4">
-              <div className="px-3 py-2">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {userName ?? "User"}
-                </p>
-                <p className="text-sm text-gray-500 truncate">{userEmail}</p>
+              <div className="flex items-center justify-between px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {userName ?? "User"}
+                  </p>
+                  <p className="text-sm text-muted-foreground truncate">{userEmail}</p>
+                </div>
+                <ModeToggle />
               </div>
               <a
                 href="/api/auth/logout"
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
               >
                 <LogOut className="h-5 w-5" />
                 Sign out

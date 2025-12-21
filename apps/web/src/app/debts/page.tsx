@@ -15,13 +15,13 @@ export default async function DebtsPage() {
     redirect("/api/auth/login");
   }
 
-  // Fetch all debts for the household
+  // Fetch all debts for the current user (personal privacy)
   const allDebts = await db
     .select()
     .from(debts)
     .where(
       and(
-        eq(debts.householdId, session.householdId),
+        eq(debts.userId, session.userId),
         isNull(debts.deletedAt)
       )
     )
@@ -61,41 +61,41 @@ export default async function DebtsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Debts</h1>
-          <p className="text-gray-500">Track loans and credit cards</p>
+          <p className="text-muted-foreground">Track loans and credit cards</p>
         </div>
         <AddDebtDialog />
       </div>
 
       {/* Summary Cards */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">Total Debt</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          <p className="text-sm font-medium text-muted-foreground">Total Debt</p>
+          <p className="mt-1 text-3xl font-bold">
             ${totalDebt.toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
         </div>
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          <p className="text-sm font-medium text-muted-foreground">
             Credit Utilization
           </p>
           <p
             className={`mt-1 text-3xl font-bold ${
-              avgUtilization > 30 ? "text-red-600" : "text-green-600"
+              avgUtilization > 30 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
             }`}
           >
             {avgUtilization.toFixed(1)}%
           </p>
           {creditCards.length === 0 && (
-            <p className="mt-1 text-xs text-gray-400">No credit cards</p>
+            <p className="mt-1 text-xs text-muted-foreground/70">No credit cards</p>
           )}
         </div>
       </div>
 
       {/* Debt Cards */}
       {allDebts.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center">
-          <p className="text-gray-500">No debts tracked yet.</p>
-          <p className="mt-1 text-sm text-gray-400">
+        <div className="rounded-lg border border-dashed border-border p-12 text-center">
+          <p className="text-muted-foreground">No debts tracked yet.</p>
+          <p className="mt-1 text-sm text-muted-foreground/70">
             Add a loan or credit card to get started.
           </p>
         </div>

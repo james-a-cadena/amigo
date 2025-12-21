@@ -11,7 +11,7 @@ export async function AppShell({ children }: AppShellProps) {
   // If authenticated, show navigation
   if (session) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <NavBar userName={session.name} userEmail={session.email} />
         {children}
       </div>

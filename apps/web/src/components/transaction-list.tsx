@@ -128,14 +128,14 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
         Failed to load transactions. Please try again.
       </div>
     );
@@ -147,7 +147,7 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
       {showAddForm ? (
         <form
           onSubmit={handleAddTransaction}
-          className="rounded-lg border bg-white p-4 space-y-3"
+          className="rounded-lg border bg-card p-4 space-y-3"
         >
           <div className="flex gap-2">
             <button
@@ -157,8 +157,8 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
               }
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
                 newTransaction.type === "expense"
-                  ? "bg-red-100 text-red-700"
-                  : "bg-gray-100 text-gray-600"
+                  ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                  : "bg-secondary text-muted-foreground"
               }`}
             >
               Expense
@@ -170,8 +170,8 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
               }
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
                 newTransaction.type === "income"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-gray-100 text-gray-600"
+                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                  : "bg-secondary text-muted-foreground"
               }`}
             >
               Income
@@ -186,7 +186,7 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
             onChange={(e) =>
               setNewTransaction((prev) => ({ ...prev, amount: e.target.value }))
             }
-            className="w-full rounded-md border px-3 py-2"
+            className="w-full rounded-md border border-input bg-background px-3 py-2"
             required
           />
 
@@ -200,7 +200,7 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
                 description: e.target.value,
               }))
             }
-            className="w-full rounded-md border px-3 py-2"
+            className="w-full rounded-md border border-input bg-background px-3 py-2"
           />
 
           <input
@@ -213,21 +213,21 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
                 category: e.target.value,
               }))
             }
-            className="w-full rounded-md border px-3 py-2"
+            className="w-full rounded-md border border-input bg-background px-3 py-2"
           />
 
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
-              className="flex-1 rounded-md border px-3 py-2 text-gray-600 hover:bg-gray-50"
+              className="flex-1 rounded-md border border-input px-3 py-2 text-muted-foreground hover:bg-accent"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !newTransaction.amount}
-              className="flex-1 rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 rounded-md bg-primary px-3 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {isSubmitting ? "Adding..." : "Add"}
             </button>
@@ -236,7 +236,7 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
       ) : (
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-gray-400 hover:text-gray-600"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-muted-foreground hover:border-muted-foreground hover:text-foreground"
         >
           <Plus className="h-5 w-5" />
           Add Transaction
@@ -245,11 +245,11 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
 
       {/* Transaction List */}
       {transactions.length === 0 ? (
-        <div className="rounded-lg border bg-white p-6 text-center text-gray-500">
+        <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
           No transactions yet.
         </div>
       ) : (
-        <div className="divide-y divide-gray-100 rounded-lg border bg-white">
+        <div className="divide-y divide-border rounded-lg border bg-card">
           {transactions.map((transaction) => (
             <div
               key={transaction.id}
@@ -259,21 +259,21 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
                 <div
                   className={`rounded-full p-2 ${
                     transaction.type === "income"
-                      ? "bg-green-100"
-                      : "bg-red-100"
+                      ? "bg-green-500/10"
+                      : "bg-red-500/10"
                   }`}
                 >
                   {transaction.type === "income" ? (
-                    <ArrowUp className="h-4 w-4 text-green-600" />
+                    <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                   ) : (
-                    <ArrowDown className="h-4 w-4 text-red-600" />
+                    <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                   )}
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium">
                     {transaction.description || transaction.category}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     {transaction.category} • {formatDate(transaction.date)}
                   </p>
                 </div>
@@ -282,8 +282,8 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
                 <span
                   className={`font-semibold ${
                     transaction.type === "income"
-                      ? "text-green-600"
-                      : "text-red-600"
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
                   }`}
                 >
                   {transaction.type === "income" ? "+" : "-"}
@@ -291,7 +291,7 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
                 </span>
                 <button
                   onClick={() => handleDelete(transaction.id)}
-                  className="text-gray-400 hover:text-red-500"
+                  className="text-muted-foreground hover:text-destructive"
                   aria-label="Delete transaction"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -307,7 +307,7 @@ export function TransactionList({ apiUrl }: TransactionListProps) {
         <button
           onClick={() => fetchNextPage()}
           disabled={isFetchingNextPage}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border bg-white py-3 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border bg-card py-3 text-muted-foreground hover:bg-accent disabled:opacity-50"
         >
           {isFetchingNextPage ? (
             <>

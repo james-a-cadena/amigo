@@ -148,13 +148,13 @@ export function GroceryList({ initialItems, wsUrl }: GroceryListProps) {
           value={newItemName}
           onChange={(e) => setNewItemName(e.target.value)}
           placeholder="Add an item..."
-          className="flex-1 rounded-md border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 rounded-md border border-input bg-background px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           disabled={isPending}
         />
         <button
           type="submit"
           disabled={isPending || !newItemName.trim()}
-          className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           Add
         </button>
@@ -162,17 +162,17 @@ export function GroceryList({ initialItems, wsUrl }: GroceryListProps) {
 
       {/* Item List by Category */}
       {categories.length === 0 ? (
-        <p className="text-center text-gray-500">
+        <p className="text-center text-muted-foreground">
           No items yet. Add something to your grocery list!
         </p>
       ) : (
         <div className="space-y-4">
           {categories.map((category) => (
             <div key={category}>
-              <h3 className="mb-2 text-sm font-semibold uppercase text-gray-500">
+              <h3 className="mb-2 text-sm font-semibold uppercase text-muted-foreground">
                 {category}
               </h3>
-              <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+              <ul className="divide-y divide-border rounded-lg border bg-card">
                 {(groupedItems[category] ?? []).map((item) => (
                   <li
                     key={item.id}
@@ -183,13 +183,13 @@ export function GroceryList({ initialItems, wsUrl }: GroceryListProps) {
                         type="checkbox"
                         checked={item.isPurchased}
                         onChange={() => handleToggleItem(item.id)}
-                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="h-5 w-5 rounded border-input bg-background text-primary focus:ring-primary"
                       />
                       <span
                         className={
                           item.isPurchased
-                            ? "text-gray-400 line-through"
-                            : "text-gray-900"
+                            ? "text-muted-foreground line-through"
+                            : "text-foreground"
                         }
                       >
                         {item.itemName}
@@ -197,7 +197,7 @@ export function GroceryList({ initialItems, wsUrl }: GroceryListProps) {
                     </div>
                     <button
                       onClick={() => handleDeleteItem(item.id)}
-                      className="text-gray-400 hover:text-red-500"
+                      className="text-muted-foreground hover:text-destructive"
                       aria-label="Delete item"
                     >
                       <svg

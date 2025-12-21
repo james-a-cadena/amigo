@@ -54,13 +54,13 @@ export function BudgetCharts({
   return (
     <div className="space-y-6">
       {/* Total Spending Card */}
-      <div className="rounded-lg border bg-white p-6">
+      <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-3">
-          <div className="rounded-full bg-red-100 p-3">
-            <TrendingDown className="h-6 w-6 text-red-600" />
+          <div className="rounded-full bg-destructive/10 p-3">
+            <TrendingDown className="h-6 w-6 text-destructive" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Spending This Month</p>
+            <p className="text-sm text-muted-foreground">Total Spending This Month</p>
             <p className="text-2xl font-bold">{formatCurrency(totalSpending)}</p>
           </div>
         </div>
@@ -70,7 +70,7 @@ export function BudgetCharts({
       {hasData ? (
         <>
           {/* Pie Chart */}
-          <div className="rounded-lg border bg-white p-6">
+          <div className="rounded-lg border bg-card p-6">
             <h3 className="mb-4 text-lg font-semibold">Spending by Category</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -105,7 +105,7 @@ export function BudgetCharts({
           </div>
 
           {/* Bar Chart */}
-          <div className="rounded-lg border bg-white p-6">
+          <div className="rounded-lg border bg-card p-6">
             <h3 className="mb-4 text-lg font-semibold">Category Breakdown</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -128,13 +128,13 @@ export function BudgetCharts({
           </div>
         </>
       ) : (
-        <div className="rounded-lg border bg-white p-6">
+        <div className="rounded-lg border bg-card p-6">
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <DollarSign className="mb-4 h-12 w-12 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900">
+            <DollarSign className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <h3 className="text-lg font-medium">
               No expenses yet
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Add your first transaction to see spending charts.
             </p>
           </div>

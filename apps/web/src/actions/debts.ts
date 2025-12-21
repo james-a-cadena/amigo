@@ -49,6 +49,7 @@ export async function addDebt(input: AddDebtInput) {
     .insert(debts)
     .values({
       householdId: session.householdId,
+      userId: session.userId,
       name: validated.name.trim(),
       type: validated.type,
       balanceInitial,
@@ -59,6 +60,55 @@ export async function addDebt(input: AddDebtInput) {
   revalidatePath("/debts");
 
   return debt;
+}
+
+export type UpdateDebtInput = AddDebtInput;
+
+export async function updateDebt(id: string, input: UpdateDebtInput) {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  const validated = addDebtSchema.parse(input);
+
+  let balanceInitial: string;
+  let balanceCurrent: string;
+
+  if (validated.type === "LOAN") {
+    // For loans: initial = loan amount, current = total paid
+    balanceInitial = validated.loanAmount.toFixed(2);
+    balanceCurrent = validated.totalPaid.toFixed(2);
+  } else {
+    // For credit cards: initial = credit limit, current = available credit
+    balanceInitial = validated.creditLimit.toFixed(2);
+    balanceCurrent = validated.availableCredit.toFixed(2);
+  }
+
+  const [updated] = await db
+    .update(debts)
+    .set({
+      name: validated.name.trim(),
+      type: validated.type,
+      balanceInitial,
+      balanceCurrent,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(debts.id, id),
+        eq(debts.userId, session.userId)
+      )
+    )
+    .returning();
+
+  if (!updated) {
+    throw new Error("Debt not found");
+  }
+
+  revalidatePath("/debts");
+
+  return updated;
 }
 
 export async function deleteDebt(id: string) {
@@ -76,7 +126,7 @@ export async function deleteDebt(id: string) {
     .where(
       and(
         eq(debts.id, id),
-        eq(debts.householdId, session.householdId)
+        eq(debts.userId, session.userId)
       )
     )
     .returning();
