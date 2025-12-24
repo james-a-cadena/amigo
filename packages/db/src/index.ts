@@ -1,8 +1,13 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "./schema";
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+export type Transaction = Parameters<
+  Parameters<ReturnType<typeof drizzle<typeof schema>>["transaction"]>[0]
+>[0];
 
 function getDb() {
   if (_db) return _db;
@@ -31,6 +36,21 @@ export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
 });
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
+
+/**
+ * Wraps a database operation with audit logging context.
+ * Sets the user's auth_id in the PostgreSQL session so that
+ * audit triggers can capture who made the change.
+ */
+export async function withAuditing<T>(
+  authId: string,
+  callback: (tx: Transaction) => Promise<T>
+): Promise<T> {
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL app.current_user_auth_id = ${authId}`);
+    return callback(tx);
+  });
+}
 
 export * from "./schema";
 export * from "./queries/analytics";
