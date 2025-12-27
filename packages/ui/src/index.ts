@@ -39,6 +39,20 @@ export {
   AlertDialogAction,
   AlertDialogCancel,
 } from "./components/alert-dialog";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
+export { Switch } from "./components/switch";
+export {
+  Dialog,
+  DialogPortal,
+  DialogOverlay,
+  DialogTrigger,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "./components/dialog";
 
 // Utilities
 export { cn } from "./lib/utils";

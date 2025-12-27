@@ -10,7 +10,7 @@ export const CHANNELS = {
 
 export interface HouseholdUpdatePayload {
   householdId: string;
-  type: "GROCERY_UPDATE" | "TRANSACTION_UPDATE";
+  type: "GROCERY_UPDATE" | "TRANSACTION_UPDATE" | "RECURRING_UPDATE";
   data?: unknown;
 }
 

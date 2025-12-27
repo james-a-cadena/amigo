@@ -7,3 +7,4 @@ export * from "./budgets";
 export * from "./debts";
 export * from "./assets";
 export * from "./audit-logs";
+export * from "./recurring";
