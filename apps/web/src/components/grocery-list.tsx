@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { addItem, toggleItem, deleteItem, updateItemTags } from "@/actions/groceries";
 import { createTag, deleteTag } from "@/actions/tags";
+import { useConfirm } from "@/components/confirm-provider";
 import type { GroceryItem, GroceryTag, GroceryItemTag } from "@amigo/db";
 
 // Extended type for grocery items with their tags
@@ -125,6 +126,7 @@ function TagSelector({
   onCreateTag,
   onDeleteTag,
 }: TagSelectorProps) {
+  const confirm = useConfirm();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [newTagColor, setNewTagColor] = useState<TagColorKey>("blue");
@@ -255,9 +257,14 @@ function TagSelector({
                       )}
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          if (confirm("Delete this tag globally?")) {
+                          if (await confirm({
+                            title: "Delete Tag",
+                            description: "Are you sure you want to delete this tag globally? This action cannot be undone.",
+                            variant: "destructive",
+                            confirmText: "Delete",
+                          })) {
                             onDeleteTag(tag.id);
                           }
                         }}
@@ -337,6 +344,7 @@ function ItemTagSelector({
   onCreateTag,
   onDeleteTag,
 }: ItemTagSelectorProps) {
+  const confirm = useConfirm();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     item.groceryItemTags.map((it) => it.tagId)
@@ -496,9 +504,14 @@ function ItemTagSelector({
                       )}
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          if (confirm("Delete this tag globally?")) {
+                          if (await confirm({
+                            title: "Delete Tag",
+                            description: "Are you sure you want to delete this tag globally? This action cannot be undone.",
+                            variant: "destructive",
+                            confirmText: "Delete",
+                          })) {
                             onDeleteTag(tag.id);
                           }
                         }}
