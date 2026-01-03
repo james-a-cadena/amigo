@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { createAsset } from "@/actions/assets";
+import { CurrencySelect } from "@/components/currency-select";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 type AssetType = "BANK" | "INVESTMENT" | "CASH" | "PROPERTY";
 
@@ -20,11 +22,13 @@ export function AddAssetDialog() {
   const [name, setName] = useState("");
   const [balance, setBalance] = useState("");
   const [type, setType] = useState<AssetType>("BANK");
+  const [currency, setCurrency] = useState<CurrencyCode>("CAD");
 
   const resetForm = () => {
     setName("");
     setBalance("");
     setType("BANK");
+    setCurrency("CAD");
     setError(null);
   };
 
@@ -38,6 +42,7 @@ export function AddAssetDialog() {
           name,
           balance: parseFloat(balance) || 0,
           type,
+          currency,
         });
         resetForm();
         setIsOpen(false);
@@ -128,23 +133,32 @@ export function AddAssetDialog() {
           </div>
 
           <div>
+            <label htmlFor="assetCurrency" className="mb-1 block text-sm font-medium">
+              Currency
+            </label>
+            <CurrencySelect
+              id="assetCurrency"
+              value={currency}
+              onChange={setCurrency}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div>
             <label htmlFor="assetBalance" className="mb-1 block text-sm font-medium">
               Current Balance
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2 text-muted-foreground">$</span>
-              <input
-                id="assetBalance"
-                type="number"
-                min="0"
-                step="0.01"
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
-                placeholder="0.00"
-                className="w-full rounded-md border border-input bg-background py-2 pl-7 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                required
-              />
-            </div>
+            <input
+              id="assetBalance"
+              type="number"
+              min="0"
+              step="0.01"
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              required
+            />
           </div>
 
           <div className="flex gap-3 pt-2">

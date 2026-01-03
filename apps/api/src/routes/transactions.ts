@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, desc, eq, and, isNull } from "@amigo/db";
-import { transactions } from "@amigo/db/schema";
+import { db, desc, eq, and, or, isNull, sql } from "@amigo/db";
+import { transactions, budgets } from "@amigo/db/schema";
 import { getSessionFromCookie } from "../lib/session";
 
 const querySchema = z.object({
@@ -25,25 +25,68 @@ export const transactionsRouter = new Hono().get(
     const { page, limit, category } = c.req.valid("query");
     const offset = (page - 1) * limit;
 
+    // Transactions visible to the user:
+    // 1. Transactions they own (userId = current user)
+    // 2. Transactions linked to a shared budget (budget.userId IS NULL)
+    const visibilityCondition = or(
+      eq(transactions.userId, session.userId),
+      and(
+        sql`${transactions.budgetId} IS NOT NULL`,
+        sql`EXISTS (
+          SELECT 1 FROM ${budgets}
+          WHERE ${budgets.id} = ${transactions.budgetId}
+          AND ${budgets.userId} IS NULL
+        )`
+      )
+    );
+
     const conditions = [
       eq(transactions.householdId, session.householdId),
       isNull(transactions.deletedAt),
+      visibilityCondition,
     ];
 
     if (category) {
       conditions.push(eq(transactions.category, category));
     }
 
+    // Left join with budgets to get budget name
     const data = await db
-      .select()
+      .select({
+        id: transactions.id,
+        householdId: transactions.householdId,
+        userId: transactions.userId,
+        budgetId: transactions.budgetId,
+        amount: transactions.amount,
+        currency: transactions.currency,
+        exchangeRateToHome: transactions.exchangeRateToHome,
+        category: transactions.category,
+        description: transactions.description,
+        type: transactions.type,
+        date: transactions.date,
+        createdAt: transactions.createdAt,
+        updatedAt: transactions.updatedAt,
+        deletedAt: transactions.deletedAt,
+        budgetName: budgets.name,
+      })
       .from(transactions)
+      .leftJoin(budgets, eq(transactions.budgetId, budgets.id))
       .where(and(...conditions))
       .orderBy(desc(transactions.date))
       .limit(limit)
       .offset(offset);
 
+    // Serialize dates as YYYY-MM-DD strings to avoid timezone issues
+    // When Date objects are JSON serialized, they become UTC ISO strings
+    // which display as the wrong day in non-UTC timezones
+    // Use getUTC* methods since the Date was created from a UTC midnight timestamp
+    const serializedData = data.map((t) => ({
+      ...t,
+      date: `${t.date.getUTCFullYear()}-${String(t.date.getUTCMonth() + 1).padStart(2, "0")}-${String(t.date.getUTCDate()).padStart(2, "0")}`,
+    }));
+
     return c.json({
-      data,
+      data: serializedData,
       pagination: {
         page,
         limit,

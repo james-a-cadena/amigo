@@ -7,6 +7,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { households } from "./households";
+import { users } from "./users";
+import { currencyEnum } from "./currencies";
 
 export const budgetPeriodEnum = pgEnum("budget_period", [
   "weekly",
@@ -19,8 +21,13 @@ export const budgets = pgTable("budgets", {
   householdId: uuid("household_id")
     .notNull()
     .references(() => households.id, { onDelete: "cascade" }),
-  category: text("category").notNull(),
+  // If userId is NULL, the budget is shared (household-wide)
+  // If userId is set, the budget is personal (only that user's spending counts)
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // Budget name (required)
+  category: text("category"), // Optional category for filtering
   limitAmount: numeric("limit_amount", { precision: 12, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull().default("CAD"),
   period: budgetPeriodEnum("period").notNull().default("monthly"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -29,6 +36,7 @@ export const budgets = pgTable("budgets", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export type Budget = typeof budgets.$inferSelect;

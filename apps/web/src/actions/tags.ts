@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db, eq, and, sql, withAuditing } from "@amigo/db";
+import { db, eq, and, sql } from "@amigo/db";
 import { groceryTags } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 
@@ -27,7 +27,6 @@ export async function createTag(name: string, color?: string) {
 
   const trimmedName = name.trim();
 
-  // Check for existing tag with same name (case-insensitive) in this household
   const existingTag = await db.query.groceryTags.findFirst({
     where: and(
       eq(groceryTags.householdId, session.householdId),
@@ -35,27 +34,69 @@ export async function createTag(name: string, color?: string) {
     ),
   });
 
-  // If tag already exists, return it without creating a duplicate
   if (existingTag) {
     return existingTag;
   }
 
-  // Create new tag
-  const tag = await withAuditing(session.authId, async (tx) => {
-    const [inserted] = await tx
-      .insert(groceryTags)
-      .values({
-        householdId: session.householdId,
-        name: trimmedName,
-        color: color?.trim() || "blue",
-      })
-      .returning();
-    return inserted;
-  });
+  const [tag] = await db
+    .insert(groceryTags)
+    .values({
+      householdId: session.householdId,
+      name: trimmedName,
+      color: color?.trim() || "blue",
+    })
+    .returning();
 
   revalidatePath("/groceries");
 
   return tag;
+}
+
+export async function updateTag(id: string, name: string, color: string) {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  const trimmedName = name.trim();
+
+  const existing = await db.query.groceryTags.findFirst({
+    where: and(
+      eq(groceryTags.id, id),
+      eq(groceryTags.householdId, session.householdId)
+    ),
+  });
+
+  if (!existing) {
+    throw new Error("Tag not found");
+  }
+
+  const duplicate = await db.query.groceryTags.findFirst({
+    where: and(
+      eq(groceryTags.householdId, session.householdId),
+      sql`lower(${groceryTags.name}) = lower(${trimmedName})`,
+      sql`${groceryTags.id} != ${id}`
+    ),
+  });
+
+  if (duplicate) {
+    throw new Error("A tag with this name already exists");
+  }
+
+  const [updated] = await db
+    .update(groceryTags)
+    .set({
+      name: trimmedName,
+      color: color.trim() || "blue",
+    })
+    .where(
+      and(eq(groceryTags.id, id), eq(groceryTags.householdId, session.householdId))
+    )
+    .returning();
+
+  revalidatePath("/groceries");
+
+  return updated;
 }
 
 export async function deleteTag(id: string) {
@@ -64,13 +105,12 @@ export async function deleteTag(id: string) {
     throw new Error("Unauthorized");
   }
 
-  const deleted = await withAuditing(session.authId, async (tx) => {
-    const [result] = await tx
-      .delete(groceryTags)
-      .where(eq(groceryTags.id, id))
-      .returning();
-    return result;
-  });
+  const [deleted] = await db
+    .delete(groceryTags)
+    .where(
+      and(eq(groceryTags.id, id), eq(groceryTags.householdId, session.householdId))
+    )
+    .returning();
 
   if (!deleted) {
     throw new Error("Tag not found");

@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { updateAsset, deleteAsset } from "@/actions/assets";
 import { useConfirm } from "@/components/confirm-provider";
+import { CurrencySelect } from "@/components/currency-select";
 import type { Asset } from "@amigo/db";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 type AssetType = "BANK" | "INVESTMENT" | "CASH" | "PROPERTY";
 
@@ -35,6 +37,7 @@ function EditAssetForm({
   const [name, setName] = useState(asset.name);
   const [balance, setBalance] = useState(asset.balance);
   const [type, setType] = useState<AssetType>(asset.type as AssetType);
+  const [currency, setCurrency] = useState<CurrencyCode>(asset.currency as CurrencyCode);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +49,7 @@ function EditAssetForm({
           name,
           balance: parseFloat(balance) || 0,
           type,
+          currency,
         });
         onClose();
       } catch (err) {
@@ -149,27 +153,37 @@ function EditAssetForm({
 
           <div>
             <label
+              htmlFor="editAssetCurrency"
+              className="mb-1 block text-sm font-medium"
+            >
+              Currency
+            </label>
+            <CurrencySelect
+              id="editAssetCurrency"
+              value={currency}
+              onChange={setCurrency}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label
               htmlFor="editAssetBalance"
               className="mb-1 block text-sm font-medium"
             >
               Current Balance
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2 text-muted-foreground">
-                $
-              </span>
-              <input
-                id="editAssetBalance"
-                type="number"
-                min="0"
-                step="0.01"
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
-                placeholder="0.00"
-                className="w-full rounded-md border border-input bg-background py-2 pl-7 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                required
-              />
-            </div>
+            <input
+              id="editAssetBalance"
+              type="number"
+              min="0"
+              step="0.01"
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              required
+            />
           </div>
 
           <div className="flex gap-3 pt-2">

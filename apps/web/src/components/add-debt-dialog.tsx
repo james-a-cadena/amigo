@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { addDebt } from "@/actions/debts";
+import { CurrencySelect } from "@/components/currency-select";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 type DebtTab = "LOAN" | "CREDIT_CARD";
 
@@ -15,19 +17,23 @@ export function AddDebtDialog() {
   const [loanName, setLoanName] = useState("");
   const [loanAmount, setLoanAmount] = useState("");
   const [totalPaid, setTotalPaid] = useState("");
+  const [loanCurrency, setLoanCurrency] = useState<CurrencyCode>("CAD");
 
   // Credit card fields
   const [ccName, setCcName] = useState("");
   const [creditLimit, setCreditLimit] = useState("");
   const [availableCredit, setAvailableCredit] = useState("");
+  const [ccCurrency, setCcCurrency] = useState<CurrencyCode>("CAD");
 
   const resetForm = () => {
     setLoanName("");
     setLoanAmount("");
     setTotalPaid("");
+    setLoanCurrency("CAD");
     setCcName("");
     setCreditLimit("");
     setAvailableCredit("");
+    setCcCurrency("CAD");
     setError(null);
   };
 
@@ -43,6 +49,7 @@ export function AddDebtDialog() {
             name: loanName,
             loanAmount: parseFloat(loanAmount),
             totalPaid: parseFloat(totalPaid) || 0,
+            currency: loanCurrency,
           });
         } else {
           await addDebt({
@@ -50,6 +57,7 @@ export function AddDebtDialog() {
             name: ccName,
             creditLimit: parseFloat(creditLimit),
             availableCredit: parseFloat(availableCredit),
+            currency: ccCurrency,
           });
         }
         resetForm();
@@ -154,25 +162,36 @@ export function AddDebtDialog() {
               </div>
               <div>
                 <label
+                  htmlFor="loanCurrency"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Currency
+                </label>
+                <CurrencySelect
+                  id="loanCurrency"
+                  value={loanCurrency}
+                  onChange={setLoanCurrency}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label
                   htmlFor="loanAmount"
                   className="mb-1 block text-sm font-medium"
                 >
                   Loan Amount
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">$</span>
-                  <input
-                    id="loanAmount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={loanAmount}
-                    onChange={(e) => setLoanAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-md border border-input bg-background py-2 pl-7 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    required
-                  />
-                </div>
+                <input
+                  id="loanAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={loanAmount}
+                  onChange={(e) => setLoanAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                />
               </div>
               <div>
                 <label
@@ -220,25 +239,36 @@ export function AddDebtDialog() {
               </div>
               <div>
                 <label
+                  htmlFor="ccCurrency"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Currency
+                </label>
+                <CurrencySelect
+                  id="ccCurrency"
+                  value={ccCurrency}
+                  onChange={setCcCurrency}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label
                   htmlFor="creditLimit"
                   className="mb-1 block text-sm font-medium"
                 >
                   Credit Limit
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">$</span>
-                  <input
-                    id="creditLimit"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={creditLimit}
-                    onChange={(e) => setCreditLimit(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-md border border-input bg-background py-2 pl-7 pr-3 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    required
-                  />
-                </div>
+                <input
+                  id="creditLimit"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  required
+                />
               </div>
               <div>
                 <label

@@ -9,11 +9,7 @@ export async function GET(request: NextRequest) {
   const codeVerifier = request.cookies.get("oidc_code_verifier")?.value;
   const expectedState = request.cookies.get("oidc_state")?.value;
 
-  console.log("Callback received. codeVerifier:", !!codeVerifier, "expectedState:", !!expectedState);
-  console.log("Query params:", request.nextUrl.search);
-
   if (!codeVerifier || !expectedState) {
-    console.log("Missing OIDC cookies, redirecting to login");
     return NextResponse.redirect(
       new URL("/api/auth/login", getAppUrl())
     );
@@ -44,7 +40,6 @@ export async function GET(request: NextRequest) {
                  (userInfo.preferred_username as string | undefined);
 
     if (!sub || !email) {
-      console.error("Missing userinfo. Sub:", sub, "Email:", email);
       throw new Error("Missing required userinfo (sub, email)");
     }
 
@@ -122,10 +117,8 @@ export async function GET(request: NextRequest) {
     response.cookies.delete({ name: "oidc_code_verifier", path: "/", domain: cookieDomain });
     response.cookies.delete({ name: "oidc_state", path: "/", domain: cookieDomain });
 
-    console.log("Login successful, redirecting to", getPostLoginRedirect());
     return response;
-  } catch (error) {
-    console.error("OIDC callback error:", error);
+  } catch {
     return NextResponse.redirect(
       new URL("/?error=auth_failed", getAppUrl())
     );

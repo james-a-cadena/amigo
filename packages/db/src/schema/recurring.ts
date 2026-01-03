@@ -12,6 +12,8 @@ import {
 import { households } from "./households";
 import { users } from "./users";
 import { transactionTypeEnum } from "./transactions";
+import { budgets } from "./budgets";
+import { currencyEnum } from "./currencies";
 
 export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
   "DAILY",
@@ -28,9 +30,13 @@ export const recurringTransactions = pgTable("recurring_transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  budgetId: uuid("budget_id").references(() => budgets.id, {
+    onDelete: "set null",
+  }),
 
   // Transaction Template Fields
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull().default("CAD"),
   category: text("category").notNull(),
   description: text("description"),
   type: transactionTypeEnum("type").notNull(),
@@ -38,6 +44,7 @@ export const recurringTransactions = pgTable("recurring_transactions", {
   // Scheduling Fields
   frequency: recurringFrequencyEnum("frequency").notNull(),
   interval: integer("interval").notNull().default(1),
+  dayOfMonth: integer("day_of_month"), // 1-31, used for MONTHLY frequency to specify which day
   startDate: date("start_date", { mode: "date" }).notNull(),
   endDate: date("end_date", { mode: "date" }),
   lastRunDate: date("last_run_date", { mode: "date" }),

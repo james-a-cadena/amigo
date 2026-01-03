@@ -1,24 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db, eq, and, isNull, withAuditing } from "@amigo/db";
-import { assets } from "@amigo/db/schema";
+import { db, eq, and, isNull } from "@amigo/db";
+import { assets, households, type CurrencyCode } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
+import { getExchangeRateForRecord } from "@/lib/exchange-rates";
 import { z } from "zod";
 
 const assetSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["BANK", "INVESTMENT", "CASH", "PROPERTY"]),
   balance: z.number(),
+  currency: z.enum(["CAD", "USD", "EUR", "GBP", "MXN"]).optional(),
 });
 
 export type AssetInput = z.infer<typeof assetSchema>;
 
-/**
- * Get all assets for the current user.
- * PRIVACY: Filters by BOTH householdId AND userId to ensure
- * users cannot see their partner's assets.
- */
+async function getHomeCurrency(householdId: string): Promise<CurrencyCode> {
+  const household = await db.query.households.findFirst({
+    where: eq(households.id, householdId),
+  });
+  return household?.homeCurrency ?? "CAD";
+}
+
 export async function getAssets() {
   const session = await getSession();
   if (!session) {
@@ -37,10 +41,6 @@ export async function getAssets() {
   return userAssets;
 }
 
-/**
- * Create a new asset for the current user.
- * Uses withAuditing to track who created the asset.
- */
 export async function createAsset(input: AssetInput) {
   const session = await getSession();
   if (!session) {
@@ -48,31 +48,28 @@ export async function createAsset(input: AssetInput) {
   }
 
   const validated = assetSchema.parse(input);
+  const currency = validated.currency ?? "CAD";
+  const homeCurrency = await getHomeCurrency(session.householdId);
+  const exchangeRateToHome = await getExchangeRateForRecord(currency, homeCurrency);
 
-  const asset = await withAuditing(session.authId, async (tx) => {
-    const [inserted] = await tx
-      .insert(assets)
-      .values({
-        householdId: session.householdId,
-        userId: session.userId,
-        name: validated.name.trim(),
-        type: validated.type,
-        balance: validated.balance.toFixed(2),
-      })
-      .returning();
-    return inserted;
-  });
+  const [asset] = await db
+    .insert(assets)
+    .values({
+      householdId: session.householdId,
+      userId: session.userId,
+      name: validated.name.trim(),
+      type: validated.type,
+      balance: validated.balance.toFixed(2),
+      currency,
+      exchangeRateToHome,
+    })
+    .returning();
 
   revalidatePath("/assets");
 
   return asset;
 }
 
-/**
- * Update an existing asset.
- * PRIVACY: Ensures userId matches to prevent modifying others' assets.
- * Uses withAuditing to track who made the change.
- */
 export async function updateAsset(id: string, input: AssetInput) {
   const session = await getSession();
   if (!session) {
@@ -80,25 +77,27 @@ export async function updateAsset(id: string, input: AssetInput) {
   }
 
   const validated = assetSchema.parse(input);
+  const currency = validated.currency ?? "CAD";
+  const homeCurrency = await getHomeCurrency(session.householdId);
+  const exchangeRateToHome = await getExchangeRateForRecord(currency, homeCurrency);
 
-  const updated = await withAuditing(session.authId, async (tx) => {
-    const [result] = await tx
-      .update(assets)
-      .set({
-        name: validated.name.trim(),
-        type: validated.type,
-        balance: validated.balance.toFixed(2),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(assets.id, id),
-          eq(assets.userId, session.userId)
-        )
+  const [updated] = await db
+    .update(assets)
+    .set({
+      name: validated.name.trim(),
+      type: validated.type,
+      balance: validated.balance.toFixed(2),
+      currency,
+      exchangeRateToHome,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(assets.id, id),
+        eq(assets.userId, session.userId)
       )
-      .returning();
-    return result;
-  });
+    )
+    .returning();
 
   if (!updated) {
     throw new Error("Asset not found");
@@ -109,32 +108,22 @@ export async function updateAsset(id: string, input: AssetInput) {
   return updated;
 }
 
-/**
- * Soft delete an asset.
- * PRIVACY: Ensures userId matches to prevent deleting others' assets.
- * Uses withAuditing to track who deleted the asset.
- */
 export async function deleteAsset(id: string) {
   const session = await getSession();
   if (!session) {
     throw new Error("Unauthorized");
   }
 
-  const deleted = await withAuditing(session.authId, async (tx) => {
-    const [result] = await tx
-      .update(assets)
-      .set({
-        deletedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(assets.id, id),
-          eq(assets.userId, session.userId)
-        )
+  const [deleted] = await db
+    .update(assets)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(assets.id, id),
+        eq(assets.userId, session.userId)
       )
-      .returning();
-    return result;
-  });
+    )
+    .returning();
 
   if (!deleted) {
     throw new Error("Asset not found");

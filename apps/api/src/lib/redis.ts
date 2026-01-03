@@ -1,6 +1,9 @@
 import Redis from "ioredis";
 
-const redisUrl = process.env["VALKEY_URL"] ?? "redis://192.168.15.32:6379";
+const redisUrl = process.env["VALKEY_URL"];
+if (!redisUrl) {
+  throw new Error("VALKEY_URL environment variable is required");
+}
 
 export const redis = new Redis(redisUrl);
 export const subscriber = new Redis(redisUrl);

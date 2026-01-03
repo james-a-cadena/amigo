@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { updateDebt } from "@/actions/debts";
+import { CurrencySelect } from "@/components/currency-select";
 import type { Debt } from "@amigo/db";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 type DebtTab = "LOAN" | "CREDIT_CARD";
 
@@ -27,6 +29,9 @@ function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const [totalPaid, setTotalPaid] = useState(
     debt.type === "LOAN" ? debt.balanceCurrent : ""
   );
+  const [loanCurrency, setLoanCurrency] = useState<CurrencyCode>(
+    debt.type === "LOAN" ? (debt.currency as CurrencyCode) : "CAD"
+  );
 
   const [ccName, setCcName] = useState(
     debt.type === "CREDIT_CARD" ? debt.name : ""
@@ -36,6 +41,9 @@ function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   );
   const [availableCredit, setAvailableCredit] = useState(
     debt.type === "CREDIT_CARD" ? debt.balanceCurrent : ""
+  );
+  const [ccCurrency, setCcCurrency] = useState<CurrencyCode>(
+    debt.type === "CREDIT_CARD" ? (debt.currency as CurrencyCode) : "CAD"
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,6 +58,7 @@ function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
             name: loanName,
             loanAmount: parseFloat(loanAmount),
             totalPaid: parseFloat(totalPaid) || 0,
+            currency: loanCurrency,
           });
         } else {
           await updateDebt(debt.id, {
@@ -57,6 +66,7 @@ function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
             name: ccName,
             creditLimit: parseFloat(creditLimit),
             availableCredit: parseFloat(availableCredit),
+            currency: ccCurrency,
           });
         }
         onClose();
@@ -146,27 +156,36 @@ function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               </div>
               <div>
                 <label
+                  htmlFor="editLoanCurrency"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Currency
+                </label>
+                <CurrencySelect
+                  id="editLoanCurrency"
+                  value={loanCurrency}
+                  onChange={setLoanCurrency}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label
                   htmlFor="editLoanAmount"
                   className="mb-1 block text-sm font-medium"
                 >
                   Loan Amount
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">
-                    $
-                  </span>
-                  <input
-                    id="editLoanAmount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={loanAmount}
-                    onChange={(e) => setLoanAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-md border border-input bg-background py-2 pl-7 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    required
-                  />
-                </div>
+                <input
+                  id="editLoanAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={loanAmount}
+                  onChange={(e) => setLoanAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                />
               </div>
               <div>
                 <label
@@ -216,27 +235,36 @@ function EditDebtForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               </div>
               <div>
                 <label
+                  htmlFor="editCcCurrency"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Currency
+                </label>
+                <CurrencySelect
+                  id="editCcCurrency"
+                  value={ccCurrency}
+                  onChange={setCcCurrency}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label
                   htmlFor="editCreditLimit"
                   className="mb-1 block text-sm font-medium"
                 >
                   Credit Limit
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-muted-foreground">
-                    $
-                  </span>
-                  <input
-                    id="editCreditLimit"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={creditLimit}
-                    onChange={(e) => setCreditLimit(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-md border border-input bg-background py-2 pl-7 pr-3 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    required
-                  />
-                </div>
+                <input
+                  id="editCreditLimit"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  required
+                />
               </div>
               <div>
                 <label

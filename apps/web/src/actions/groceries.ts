@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db, eq, and, isNull, withAuditing } from "@amigo/db";
+import { db, eq, and, isNull, lt, isNotNull } from "@amigo/db";
 import { groceryItems, groceryItemTags } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 import { publishHouseholdUpdate } from "@/lib/redis";
@@ -16,8 +16,7 @@ export async function addItem(
     throw new Error("Unauthorized");
   }
 
-  const item = await withAuditing(session.authId, async (tx) => {
-    // Insert the grocery item
+  const item = await db.transaction(async (tx) => {
     const [inserted] = await tx
       .insert(groceryItems)
       .values({
@@ -32,7 +31,6 @@ export async function addItem(
       throw new Error("Failed to insert grocery item");
     }
 
-    // Insert tag associations if any tags provided
     if (tagIds && tagIds.length > 0) {
       await tx.insert(groceryItemTags).values(
         tagIds.map((tagId) => ({
@@ -61,7 +59,6 @@ export async function toggleItem(id: string) {
     throw new Error("Unauthorized");
   }
 
-  // Fetch current item state (read can be outside transaction)
   const existing = await db.query.groceryItems.findFirst({
     where: and(
       eq(groceryItems.id, id),
@@ -74,21 +71,19 @@ export async function toggleItem(id: string) {
     throw new Error("Item not found");
   }
 
-  const updated = await withAuditing(session.authId, async (tx) => {
-    const [result] = await tx
-      .update(groceryItems)
-      .set({
-        isPurchased: !existing.isPurchased,
-      })
-      .where(
-        and(
-          eq(groceryItems.id, id),
-          eq(groceryItems.householdId, session.householdId)
-        )
+  const [updated] = await db
+    .update(groceryItems)
+    .set({
+      isPurchased: !existing.isPurchased,
+      purchasedAt: existing.isPurchased ? null : new Date(),
+    })
+    .where(
+      and(
+        eq(groceryItems.id, id),
+        eq(groceryItems.householdId, session.householdId)
       )
-      .returning();
-    return result;
-  });
+    )
+    .returning();
 
   await publishHouseholdUpdate({
     householdId: session.householdId,
@@ -106,22 +101,16 @@ export async function deleteItem(id: string) {
     throw new Error("Unauthorized");
   }
 
-  // Soft delete with audit logging
-  const deleted = await withAuditing(session.authId, async (tx) => {
-    const [result] = await tx
-      .update(groceryItems)
-      .set({
-        deletedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(groceryItems.id, id),
-          eq(groceryItems.householdId, session.householdId)
-        )
+  const [deleted] = await db
+    .update(groceryItems)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(groceryItems.id, id),
+        eq(groceryItems.householdId, session.householdId)
       )
-      .returning();
-    return result;
-  });
+    )
+    .returning();
 
   if (!deleted) {
     throw new Error("Item not found");
@@ -143,7 +132,6 @@ export async function updateItemTags(itemId: string, tagIds: string[]) {
     throw new Error("Unauthorized");
   }
 
-  // Verify ownership - item must belong to user's household
   const existing = await db.query.groceryItems.findFirst({
     where: and(
       eq(groceryItems.id, itemId),
@@ -156,13 +144,11 @@ export async function updateItemTags(itemId: string, tagIds: string[]) {
     throw new Error("Item not found");
   }
 
-  await withAuditing(session.authId, async (tx) => {
-    // Delete all existing tag associations for this item
+  await db.transaction(async (tx) => {
     await tx
       .delete(groceryItemTags)
       .where(eq(groceryItemTags.itemId, itemId));
 
-    // Insert new tag associations if any provided
     if (tagIds.length > 0) {
       await tx.insert(groceryItemTags).values(
         tagIds.map((tagId) => ({
@@ -179,4 +165,28 @@ export async function updateItemTags(itemId: string, tagIds: string[]) {
   });
 
   revalidatePath("/groceries");
+}
+
+export async function clearOldPurchasedItems() {
+  const session = await getSession();
+  if (!session) {
+    return { deleted: 0 };
+  }
+
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const result = await db
+    .delete(groceryItems)
+    .where(
+      and(
+        eq(groceryItems.householdId, session.householdId),
+        eq(groceryItems.isPurchased, true),
+        isNotNull(groceryItems.purchasedAt),
+        lt(groceryItems.purchasedAt, ninetyDaysAgo)
+      )
+    )
+    .returning({ id: groceryItems.id });
+
+  return { deleted: result.length };
 }

@@ -3,6 +3,7 @@ import { groceryItems, groceryTags } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { GroceryList } from "@/components/grocery-list";
+import { clearOldPurchasedItems } from "@/actions/groceries";
 
 // Force dynamic rendering - page queries database
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ export default async function GroceriesPage() {
   if (!session) {
     redirect("/api/auth/login");
   }
+
+  // Clean up items purchased more than 90 days ago
+  await clearOldPurchasedItems();
 
   // Fetch grocery items with their tags using query API
   const items = await db.query.groceryItems.findMany({
