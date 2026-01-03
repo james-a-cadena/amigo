@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { households } from "./households";
 import { users } from "./users";
+import { currencyEnum } from "./currencies";
 
 export const assetTypeEnum = pgEnum("asset_type", [
   "BANK",
@@ -29,6 +30,9 @@ export const assets = pgTable("assets", {
   balance: numeric("balance", { precision: 12, scale: 2 })
     .notNull()
     .default("0"),
+  currency: currencyEnum("currency").notNull().default("CAD"),
+  // Exchange rate to home currency at time of last update (null if same as home currency)
+  exchangeRateToHome: numeric("exchange_rate_to_home", { precision: 18, scale: 8 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -3,11 +3,12 @@ import type { AppType } from "@amigo/api";
 
 const getBaseUrl = () => {
   if (typeof window !== "undefined") {
-    // Client-side: use relative URL
+    // Client-side: use relative URL (Caddy proxies to API)
     return "";
   }
-  // Server-side: use environment variable
-  return process.env["API_URL"] ?? "http://192.168.15.32:3001";
+  // Server-side: API_URL not needed since we use relative URLs via Caddy
+  // This is only used for direct server-to-server calls if needed
+  return process.env["API_URL"] ?? "";
 };
 
 export const client = hc<AppType>(getBaseUrl());

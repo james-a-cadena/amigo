@@ -11,6 +11,7 @@ import {
 } from "./ws/handler";
 import type { WebSocketData } from "./ws/handler";
 import { getSessionFromCookie } from "./lib/session";
+import { rateLimit } from "./lib/rate-limit";
 
 const app = new Hono()
   .use("*", logger())
@@ -18,12 +19,18 @@ const app = new Hono()
     "*",
     cors({
       origin: [
-        "http://192.168.15.32:3000",
-        "http://dev-docker-1.cadenalabs.net:3000",
         "https://amigo.cadenalabs.net",
         "https://dev-amigo.cadenalabs.net",
       ],
       credentials: true,
+    })
+  )
+  .use(
+    "*",
+    rateLimit({
+      windowMs: 60 * 1000, // 1 minute
+      maxRequests: 100, // 100 requests per minute per IP
+      keyPrefix: "api:rl",
     })
   )
   .route("/api/health", healthRouter)

@@ -3,11 +3,15 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import { Loader2, Plus, Trash2, ArrowDown, ArrowUp } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowDown, ArrowUp, Pencil, Target } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Loading } from "@/components/loading";
-import { addTransaction, deleteTransaction } from "@/actions/transactions";
+import { BudgetSelect } from "@/components/budget-select";
+import { CurrencySelect } from "@/components/currency-select";
+import { addTransaction, deleteTransaction, updateTransaction } from "@/actions/transactions";
 import { client } from "@/lib/api";
+import { formatCurrency } from "@/lib/currency";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 // Transaction type for RPC responses (dates are serialized as strings)
 interface TransactionDTO {
@@ -15,10 +19,14 @@ interface TransactionDTO {
   householdId: string;
   userId: string;
   amount: string;
+  currency: CurrencyCode;
+  exchangeRateToHome: string | null;
   category: string;
   description: string | null;
   type: "income" | "expense";
   date: string;
+  budgetId: string | null;
+  budgetName?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -54,16 +62,18 @@ async function fetchTransactions(
   return response.json();
 }
 
-function formatCurrency(value: string | number): string {
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(num);
-}
-
 function formatDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === "string") {
+    // Extract just the date portion and parse as local time
+    // This handles both "2026-01-01" and "2026-02-01T00:00:00.000Z" formats
+    const dateOnly = date.split("T")[0];
+    d = new Date(dateOnly + "T00:00:00");
+  } else {
+    // For Date objects, use UTC components to avoid timezone shift
+    const dateOnly = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+    d = new Date(dateOnly + "T00:00:00");
+  }
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -78,8 +88,20 @@ export function TransactionList() {
     description: "",
     category: "",
     type: "expense" as "income" | "expense",
+    budgetId: null as string | null,
+    currency: "CAD" as CurrencyCode,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    amount: "",
+    description: "",
+    category: "",
+    type: "expense" as "income" | "expense",
+    date: "",
+    budgetId: null as string | null,
+    currency: "CAD" as CurrencyCode,
+  });
 
   // Intersection observer for infinite scroll
   const { ref: loadMoreRef, inView } = useInView({
@@ -122,6 +144,8 @@ export function TransactionList() {
         category: newTransaction.category || "Uncategorized",
         type: newTransaction.type,
         date: new Date(),
+        budgetId: newTransaction.budgetId,
+        currency: newTransaction.currency,
       });
 
       setNewTransaction({
@@ -129,6 +153,8 @@ export function TransactionList() {
         description: "",
         category: "",
         type: "expense",
+        budgetId: null,
+        currency: "CAD",
       });
       setShowAddForm(false);
       refetch();
@@ -145,6 +171,58 @@ export function TransactionList() {
       refetch();
     } catch (error) {
       console.error("Failed to delete transaction:", error);
+    }
+  };
+
+  const handleStartEdit = (transaction: TransactionDTO) => {
+    const dateOnly = transaction.date.split("T")[0] ?? "";
+    setEditingId(transaction.id);
+    setEditForm({
+      amount: transaction.amount,
+      description: transaction.description || "",
+      category: transaction.category,
+      type: transaction.type,
+      date: dateOnly,
+      budgetId: transaction.budgetId,
+      currency: transaction.currency,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditForm({
+      amount: "",
+      description: "",
+      category: "",
+      type: "expense",
+      date: "",
+      budgetId: null,
+      currency: "CAD",
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+
+    setIsSubmitting(true);
+    try {
+      await updateTransaction({
+        id: editingId,
+        amount: parseFloat(editForm.amount),
+        description: editForm.description || null,
+        category: editForm.category,
+        type: editForm.type,
+        date: new Date(editForm.date + "T00:00:00"),
+        budgetId: editForm.budgetId,
+        currency: editForm.currency,
+      });
+      handleCancelEdit();
+      refetch();
+    } catch (error) {
+      console.error("Failed to update transaction:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -197,17 +275,25 @@ export function TransactionList() {
             </button>
           </div>
 
-          <input
-            type="number"
-            step="0.01"
-            placeholder="Amount"
-            value={newTransaction.amount}
-            onChange={(e) =>
-              setNewTransaction((prev) => ({ ...prev, amount: e.target.value }))
-            }
-            className="w-full rounded-md border border-input bg-background px-3 py-2"
-            required
-          />
+          <div className="grid grid-cols-3 gap-2">
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Amount"
+              value={newTransaction.amount}
+              onChange={(e) =>
+                setNewTransaction((prev) => ({ ...prev, amount: e.target.value }))
+              }
+              className="col-span-2 rounded-md border border-input bg-background px-3 py-2"
+              required
+            />
+            <CurrencySelect
+              value={newTransaction.currency}
+              onChange={(currency) =>
+                setNewTransaction((prev) => ({ ...prev, currency }))
+              }
+            />
+          </div>
 
           <input
             type="text"
@@ -234,6 +320,16 @@ export function TransactionList() {
             }
             className="w-full rounded-md border border-input bg-background px-3 py-2"
           />
+
+          <div>
+            <label className="text-sm text-muted-foreground mb-1 block">Budget (optional)</label>
+            <BudgetSelect
+              value={newTransaction.budgetId}
+              onChange={(budgetId) =>
+                setNewTransaction((prev) => ({ ...prev, budgetId }))
+              }
+            />
+          </div>
 
           <div className="flex gap-2">
             <button
@@ -268,52 +364,182 @@ export function TransactionList() {
       ) : (
         <div className="divide-y divide-border rounded-lg border bg-card">
           {transactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className="flex items-center justify-between px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`rounded-full p-2 ${
-                    transaction.type === "income"
-                      ? "bg-green-500/10"
-                      : "bg-red-500/10"
-                  }`}
-                >
-                  {transaction.type === "income" ? (
-                    <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  )}
+            <div key={transaction.id}>
+              {editingId === transaction.id ? (
+                <form onSubmit={handleSaveEdit} className="p-4 space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditForm((prev) => ({ ...prev, type: "expense" }))
+                      }
+                      className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
+                        editForm.type === "expense"
+                          ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                          : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      Expense
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditForm((prev) => ({ ...prev, type: "income" }))
+                      }
+                      className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
+                        editForm.type === "income"
+                          ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                          : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      Income
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Amount"
+                      value={editForm.amount}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({ ...prev, amount: e.target.value }))
+                      }
+                      className="col-span-2 rounded-md border border-input bg-background px-3 py-2"
+                      required
+                    />
+                    <CurrencySelect
+                      value={editForm.currency}
+                      onChange={(currency) =>
+                        setEditForm((prev) => ({ ...prev, currency }))
+                      }
+                    />
+                    <input
+                      type="date"
+                      value={editForm.date}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({ ...prev, date: e.target.value }))
+                      }
+                      className="rounded-md border border-input bg-background px-3 py-2"
+                      required
+                    />
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Description"
+                    value={editForm.description}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-input bg-background px-3 py-2"
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Category"
+                    value={editForm.category}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        category: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-input bg-background px-3 py-2"
+                    required
+                  />
+
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Budget (optional)</label>
+                    <BudgetSelect
+                      value={editForm.budgetId}
+                      onChange={(budgetId) =>
+                        setEditForm((prev) => ({ ...prev, budgetId }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="flex-1 rounded-md border border-input px-3 py-2 text-muted-foreground hover:bg-accent"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !editForm.amount}
+                      className="flex-1 rounded-md bg-primary px-3 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {isSubmitting ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`rounded-full p-2 ${
+                        transaction.type === "income"
+                          ? "bg-green-500/10"
+                          : "bg-red-500/10"
+                      }`}
+                    >
+                      {transaction.type === "income" ? (
+                        <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {transaction.description || transaction.category}
+                        </p>
+                        {transaction.budgetId && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
+                            <Target className="h-3 w-3" />
+                            {transaction.budgetName || "Budget"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {transaction.category} • {formatDate(transaction.date)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`font-semibold ${
+                        transaction.type === "income"
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {transaction.type === "income" ? "+" : "-"}
+                      {formatCurrency(transaction.amount, transaction.currency)}
+                    </span>
+                    <button
+                      onClick={() => handleStartEdit(transaction)}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Edit transaction"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(transaction.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Delete transaction"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">
-                    {transaction.description || transaction.category}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {transaction.category} • {formatDate(transaction.date)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`font-semibold ${
-                    transaction.type === "income"
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
-                  }`}
-                >
-                  {transaction.type === "income" ? "+" : "-"}
-                  {formatCurrency(transaction.amount)}
-                </span>
-                <button
-                  onClick={() => handleDelete(transaction.id)}
-                  className="text-muted-foreground hover:text-destructive"
-                  aria-label="Delete transaction"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
+              )}
             </div>
           ))}
         </div>

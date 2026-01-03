@@ -1,8 +1,10 @@
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { currencyEnum } from "./currencies";
 
 export const households = pgTable("households", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  homeCurrency: currencyEnum("home_currency").notNull().default("CAD"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

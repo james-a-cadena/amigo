@@ -1,5 +1,5 @@
-import { db, eq, and, isNull, gte, lt, sql } from "../index";
-import { transactions } from "../schema";
+import { db, eq, and, or, isNull, gte, lt, sql } from "../index";
+import { transactions, budgets } from "../schema";
 
 export interface CategorySpending {
   category: string;
@@ -30,10 +30,29 @@ function getMonthBounds(year: number, month: number): { start: Date; end: Date }
 }
 
 /**
- * Fetch total spending for a household within a date range
+ * Build visibility condition for user-scoped transactions
+ * User can see:
+ * 1. Their own transactions
+ * 2. Transactions linked to a shared budget (budget.userId IS NULL)
+ */
+function buildVisibilityCondition(userId: string) {
+  return or(
+    eq(transactions.userId, userId),
+    sql`EXISTS (
+      SELECT 1 FROM ${budgets}
+      WHERE ${budgets.id} = ${transactions.budgetId}
+      AND ${budgets.userId} IS NULL
+    )`
+  );
+}
+
+/**
+ * Fetch total spending for a user within a date range
+ * Includes user's own transactions + transactions on shared budgets
  */
 async function getTotalSpending(
   householdId: string,
+  userId: string,
   startDate: Date,
   endDate: Date
 ): Promise<number> {
@@ -48,7 +67,8 @@ async function getTotalSpending(
         eq(transactions.type, "expense"),
         isNull(transactions.deletedAt),
         gte(transactions.date, startDate),
-        lt(transactions.date, endDate)
+        lt(transactions.date, endDate),
+        buildVisibilityCondition(userId)
       )
     );
 
@@ -56,10 +76,12 @@ async function getTotalSpending(
 }
 
 /**
- * Fetch spending by category for a household within a date range
+ * Fetch spending by category for a user within a date range
+ * Includes user's own transactions + transactions on shared budgets
  */
 async function getSpendingByCategory(
   householdId: string,
+  userId: string,
   startDate: Date,
   endDate: Date
 ): Promise<CategorySpending[]> {
@@ -75,7 +97,8 @@ async function getSpendingByCategory(
         eq(transactions.type, "expense"),
         isNull(transactions.deletedAt),
         gte(transactions.date, startDate),
-        lt(transactions.date, endDate)
+        lt(transactions.date, endDate),
+        buildVisibilityCondition(userId)
       )
     )
     .groupBy(transactions.category);
@@ -93,9 +116,14 @@ async function getSpendingByCategory(
  * - Total spending for the current month
  * - Spending breakdown by category
  * - Month-over-month comparison data for bar charts
+ *
+ * Analytics are scoped to the user's visible transactions:
+ * - User's own transactions
+ * - Transactions linked to shared budgets
  */
 export async function getBudgetAnalytics(
-  householdId: string
+  householdId: string,
+  userId: string
 ): Promise<BudgetAnalytics> {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -110,9 +138,9 @@ export async function getBudgetAnalytics(
 
   // Fetch data in parallel for better performance
   const [totalSpending, thisMonthData, lastMonthData] = await Promise.all([
-    getTotalSpending(householdId, thisMonthBounds.start, thisMonthBounds.end),
-    getSpendingByCategory(householdId, thisMonthBounds.start, thisMonthBounds.end),
-    getSpendingByCategory(householdId, lastMonthBounds.start, lastMonthBounds.end),
+    getTotalSpending(householdId, userId, thisMonthBounds.start, thisMonthBounds.end),
+    getSpendingByCategory(householdId, userId, thisMonthBounds.start, thisMonthBounds.end),
+    getSpendingByCategory(householdId, userId, lastMonthBounds.start, lastMonthBounds.end),
   ]);
 
   // Build category data (current month only)
@@ -144,9 +172,11 @@ export async function getBudgetAnalytics(
 /**
  * Get spending totals for a specific category over multiple months
  * Useful for trend analysis
+ * Scoped to user's visible transactions
  */
 export async function getCategoryTrend(
   householdId: string,
+  userId: string,
   category: string,
   months: number = 6
 ): Promise<{ month: string; amount: number }[]> {
@@ -172,7 +202,8 @@ export async function getCategoryTrend(
           eq(transactions.category, category),
           isNull(transactions.deletedAt),
           gte(transactions.date, bounds.start),
-          lt(transactions.date, bounds.end)
+          lt(transactions.date, bounds.end),
+          buildVisibilityCondition(userId)
         )
       );
 

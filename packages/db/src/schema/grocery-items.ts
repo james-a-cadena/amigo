@@ -13,6 +13,7 @@ export const groceryItems = pgTable("grocery_items", {
   itemName: text("item_name").notNull(),
   category: text("category"),
   isPurchased: boolean("is_purchased").notNull().default(false),
+  purchasedAt: timestamp("purchased_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

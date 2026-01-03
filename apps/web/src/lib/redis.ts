@@ -1,8 +1,27 @@
 import Redis from "ioredis";
 
-const redisUrl = process.env["VALKEY_URL"] ?? "redis://192.168.15.32:6379";
+function getRedis(): Redis {
+  const redisUrl = process.env["VALKEY_URL"];
+  if (!redisUrl) {
+    throw new Error("VALKEY_URL environment variable is required");
+  }
+  return new Redis(redisUrl);
+}
 
-export const redis = new Redis(redisUrl);
+// Lazy initialization to avoid build-time errors
+let _redis: Redis | null = null;
+export const redis = new Proxy({} as Redis, {
+  get(_target, prop) {
+    if (!_redis) {
+      _redis = getRedis();
+    }
+    const value = _redis[prop as keyof Redis];
+    if (typeof value === "function") {
+      return value.bind(_redis);
+    }
+    return value;
+  },
+});
 
 export const CHANNELS = {
   HOUSEHOLD_UPDATES: "household:updates",

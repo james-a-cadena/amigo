@@ -17,8 +17,10 @@ const STATIC_EXTENSIONS = [
   ".svg",
   ".css",
   ".js",
+  ".json",
   ".woff",
   ".woff2",
+  ".webmanifest",
 ];
 
 export function middleware(request: NextRequest) {

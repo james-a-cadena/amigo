@@ -4,7 +4,9 @@ import { useState, useTransition } from "react";
 import { deleteDebt } from "@/actions/debts";
 import { EditDebtDialog } from "@/components/edit-debt-dialog";
 import { useConfirm } from "@/components/confirm-provider";
+import { formatCurrency } from "@/lib/currency";
 import type { Debt } from "@amigo/db";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 interface DebtCardsProps {
   debts: Debt[];
@@ -19,6 +21,19 @@ function LoanCard({ debt }: { debt: Debt }) {
   const totalPaid = parseFloat(debt.balanceCurrent);
   const remaining = Math.max(0, loanAmount - totalPaid);
   const percentPaid = loanAmount > 0 ? (totalPaid / loanAmount) * 100 : 0;
+
+  // Loan payoff progress colors (higher paid = better)
+  const getPayoffBarColor = (percent: number) => {
+    if (percent >= 80) return "bg-green-500";
+    if (percent > 30) return "bg-orange-500";
+    return "bg-red-500";
+  };
+
+  const getPayoffTextColor = (percent: number) => {
+    if (percent >= 80) return "text-green-600 dark:text-green-400";
+    if (percent > 30) return "text-orange-600 dark:text-orange-400";
+    return "text-red-600 dark:text-red-400";
+  };
 
   const handleDelete = async () => {
     const confirmed = await confirm({
@@ -87,33 +102,35 @@ function LoanCard({ debt }: { debt: Debt }) {
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Loan Amount</span>
           <span className="font-medium">
-            ${loanAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrency(loanAmount, debt.currency as CurrencyCode)}
           </span>
         </div>
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Total Paid</span>
           <span className="font-medium text-green-600 dark:text-green-400">
-            ${totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrency(totalPaid, debt.currency as CurrencyCode)}
           </span>
         </div>
         <div className="mb-4 flex justify-between text-sm">
           <span className="text-muted-foreground">Remaining</span>
           <span className="font-medium">
-            ${remaining.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrency(remaining, debt.currency as CurrencyCode)}
           </span>
         </div>
 
-        {/* Progress Bar - Green (positive progress) */}
+        {/* Progress Bar - Color based on payoff progress */}
         <div className="mb-2">
           <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className="h-full rounded-full bg-green-500 transition-all duration-300"
+              className={`h-full rounded-full transition-all duration-300 ${getPayoffBarColor(percentPaid)}`}
               style={{ width: `${Math.min(100, percentPaid)}%` }}
             />
           </div>
         </div>
-        <p className="text-center text-sm font-medium text-green-600 dark:text-green-400">
+        <p className={`text-center text-sm font-medium ${getPayoffTextColor(percentPaid)}`}>
           Paid off: {percentPaid.toFixed(1)}%
+          {percentPaid >= 80 && <span className="ml-1 text-xs">(Almost there!)</span>}
+          {percentPaid <= 30 && percentPaid > 0 && <span className="ml-1 text-xs">(Just started)</span>}
         </p>
       </div>
       <EditDebtDialog
@@ -149,16 +166,17 @@ function CreditCardCard({ debt }: { debt: Debt }) {
     }
   };
 
-  // Utilization warning levels
+  // Credit utilization colors (lower usage = better)
   const getUtilizationColor = (util: number) => {
-    if (util > 50) return "bg-red-500";
+    if (util >= 80) return "bg-red-500";
     if (util > 30) return "bg-orange-500";
-    return "bg-red-400";
+    return "bg-green-500";
   };
 
   const getTextColor = (util: number) => {
-    if (util > 30) return "text-red-600 dark:text-red-400";
-    return "text-muted-foreground";
+    if (util >= 80) return "text-red-600 dark:text-red-400";
+    if (util > 30) return "text-orange-600 dark:text-orange-400";
+    return "text-green-600 dark:text-green-400";
   };
 
   return (
@@ -213,19 +231,19 @@ function CreditCardCard({ debt }: { debt: Debt }) {
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Credit Limit</span>
           <span className="font-medium">
-            ${creditLimit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrency(creditLimit, debt.currency as CurrencyCode)}
           </span>
         </div>
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Available</span>
           <span className="font-medium text-green-600 dark:text-green-400">
-            ${availableCredit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrency(availableCredit, debt.currency as CurrencyCode)}
           </span>
         </div>
         <div className="mb-4 flex justify-between text-sm">
           <span className="text-muted-foreground">Used</span>
           <span className={`font-medium ${getTextColor(utilization)}`}>
-            ${usedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            {formatCurrency(usedAmount, debt.currency as CurrencyCode)}
           </span>
         </div>
 
@@ -240,9 +258,9 @@ function CreditCardCard({ debt }: { debt: Debt }) {
         </div>
         <p className={`text-center text-sm font-medium ${getTextColor(utilization)}`}>
           Utilization: {utilization.toFixed(1)}%
-          {utilization > 30 && (
-            <span className="ml-1 text-xs text-orange-500">(High)</span>
-          )}
+          {utilization >= 80 && <span className="ml-1 text-xs">(Critical)</span>}
+          {utilization > 30 && utilization < 80 && <span className="ml-1 text-xs">(High)</span>}
+          {utilization <= 30 && <span className="ml-1 text-xs">(Healthy)</span>}
         </p>
       </div>
       <EditDebtDialog

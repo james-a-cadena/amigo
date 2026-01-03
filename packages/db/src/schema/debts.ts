@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { households } from "./households";
 import { users } from "./users";
+import { currencyEnum } from "./currencies";
 
 export const debtTypeEnum = pgEnum("debt_type", ["LOAN", "CREDIT_CARD"]);
 
@@ -25,6 +26,9 @@ export const debts = pgTable("debts", {
   balanceInitial: numeric("balance_initial", { precision: 12, scale: 2 }).notNull(),
   // For LOAN: Total Paid | For CREDIT_CARD: Available Credit
   balanceCurrent: numeric("balance_current", { precision: 12, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull().default("CAD"),
+  // Exchange rate to home currency at time of last update (null if same as home currency)
+  exchangeRateToHome: numeric("exchange_rate_to_home", { precision: 18, scale: 8 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

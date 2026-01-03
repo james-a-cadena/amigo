@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "amigo - Household Budget",
+  title: "amigo",
   description: "Self-hosted household budgeting with grocery tracking",
   manifest: "/manifest.json",
   appleWebApp: {
