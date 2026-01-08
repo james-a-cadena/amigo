@@ -11,7 +11,11 @@ export async function GET() {
   // Redirect to Authentik's logout endpoint
   // Authentik uses /application/o/<slug>/end-session/ or we can use the base logout
   const authentikIssuer = process.env["AUTHENTIK_ISSUER"] ?? "https://auth.cadenalabs.net/application/o/amigo/";
-  const appUrl = process.env["APP_URL"] ?? "https://dev-amigo.cadenalabs.net";
+  const isProduction = process.env["NODE_ENV"] === "production";
+  const defaultAppUrl = isProduction
+    ? "https://amigo.cadenalabs.net"
+    : "https://dev-amigo.cadenalabs.net";
+  const appUrl = process.env["APP_URL"] ?? defaultAppUrl;
   // Use OIDC end_session_endpoint with post_logout_redirect_uri
   const logoutUrl = `${authentikIssuer}end-session/?post_logout_redirect_uri=${encodeURIComponent(appUrl)}`;
 

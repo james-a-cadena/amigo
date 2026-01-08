@@ -40,6 +40,9 @@ export function useWebSocket({
   const isMountedRef = useRef(true);
   const [status, setStatus] = useState<WebSocketStatus>("disconnected");
 
+  // Store connect function in a ref so it can reference itself
+  const connectRef = useRef<() => void>(() => {});
+
   const clearTimers = useCallback(() => {
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
@@ -51,70 +54,73 @@ export function useWebSocket({
     }
   }, []);
 
-  const connect = useCallback(() => {
-    if (!isMountedRef.current) return;
+  // Update the connect function ref when dependencies change
+  useEffect(() => {
+    connectRef.current = () => {
+      if (!isMountedRef.current) return;
 
-    // Construct full WebSocket URL from current page location
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const fullWsUrl = `${protocol}//${window.location.host}${url}`;
+      // Construct full WebSocket URL from current page location
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const fullWsUrl = `${protocol}//${window.location.host}${url}`;
 
-    setStatus("connecting");
+      setStatus("connecting");
 
-    const ws = new WebSocket(fullWsUrl);
-    wsRef.current = ws;
+      const ws = new WebSocket(fullWsUrl);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      if (!isMountedRef.current) {
-        ws.close();
-        return;
-      }
-      setStatus("connected");
-      retryCountRef.current = 0;
-
-      // Start ping interval to keep connection alive
-      pingIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "ping" }));
+      ws.onopen = () => {
+        if (!isMountedRef.current) {
+          ws.close();
+          return;
         }
-      }, pingInterval);
-    };
+        setStatus("connected");
+        retryCountRef.current = 0;
 
-    ws.onmessage = (event) => {
-      if (!isMountedRef.current) return;
-      try {
-        const data = JSON.parse(event.data);
-        // Ignore pong responses
-        if (data.type === "pong") return;
-        onMessage(data);
-      } catch {
-        // Ignore non-JSON messages
-      }
-    };
-
-    ws.onerror = () => {
-      // Error will trigger onclose, which handles reconnection
-    };
-
-    ws.onclose = () => {
-      if (!isMountedRef.current) return;
-
-      setStatus("disconnected");
-      clearTimers();
-
-      // Attempt reconnection with exponential backoff
-      if (retryCountRef.current < maxRetries) {
-        const delay = Math.min(
-          baseDelay * Math.pow(2, retryCountRef.current),
-          maxDelay
-        );
-        retryCountRef.current++;
-
-        retryTimeoutRef.current = setTimeout(() => {
-          if (isMountedRef.current) {
-            connect();
+        // Start ping interval to keep connection alive
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
           }
-        }, delay);
-      }
+        }, pingInterval);
+      };
+
+      ws.onmessage = (event) => {
+        if (!isMountedRef.current) return;
+        try {
+          const data = JSON.parse(event.data);
+          // Ignore pong responses
+          if (data.type === "pong") return;
+          onMessage(data);
+        } catch {
+          // Ignore non-JSON messages
+        }
+      };
+
+      ws.onerror = () => {
+        // Error will trigger onclose, which handles reconnection
+      };
+
+      ws.onclose = () => {
+        if (!isMountedRef.current) return;
+
+        setStatus("disconnected");
+        clearTimers();
+
+        // Attempt reconnection with exponential backoff
+        if (retryCountRef.current < maxRetries) {
+          const delay = Math.min(
+            baseDelay * Math.pow(2, retryCountRef.current),
+            maxDelay
+          );
+          retryCountRef.current++;
+
+          retryTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              connectRef.current();
+            }
+          }, delay);
+        }
+      };
     };
   }, [url, onMessage, maxRetries, baseDelay, maxDelay, pingInterval, clearTimers]);
 
@@ -130,14 +136,14 @@ export function useWebSocket({
     isMountedRef.current = true;
 
     // Small delay to avoid rapid connect/disconnect in React Strict Mode
-    const connectTimeout = setTimeout(connect, 100);
+    const connectTimeout = setTimeout(() => connectRef.current(), 100);
 
     return () => {
       isMountedRef.current = false;
       clearTimeout(connectTimeout);
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [disconnect]);
 
   return { status, disconnect };
 }
