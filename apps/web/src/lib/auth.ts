@@ -76,7 +76,14 @@ export async function getOIDCConfig(): Promise<client.Configuration> {
 }
 
 export function getAppUrl(): string {
-  return process.env["APP_URL"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000";
+  if (process.env["APP_URL"]) return process.env["APP_URL"];
+  if (process.env["NEXT_PUBLIC_APP_URL"]) return process.env["NEXT_PUBLIC_APP_URL"];
+
+  // Default based on NODE_ENV
+  const isProduction = process.env["NODE_ENV"] === "production";
+  return isProduction
+    ? "https://amigo.cadenalabs.net"
+    : "http://localhost:3000";
 }
 
 export function getCallbackUrl(): string {

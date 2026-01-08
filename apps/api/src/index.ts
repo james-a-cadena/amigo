@@ -13,15 +13,21 @@ import type { WebSocketData } from "./ws/handler";
 import { getSessionFromCookie } from "./lib/session";
 import { rateLimit } from "./lib/rate-limit";
 
+// CORS origins from env or defaults based on NODE_ENV
+const defaultOrigins =
+  process.env["NODE_ENV"] === "production"
+    ? ["https://amigo.cadenalabs.net"]
+    : ["https://amigo.cadenalabs.net", "https://dev-amigo.cadenalabs.net"];
+const corsOrigins = process.env["CORS_ORIGINS"]
+  ? process.env["CORS_ORIGINS"].split(",").map((o) => o.trim())
+  : defaultOrigins;
+
 const app = new Hono()
   .use("*", logger())
   .use(
     "*",
     cors({
-      origin: [
-        "https://amigo.cadenalabs.net",
-        "https://dev-amigo.cadenalabs.net",
-      ],
+      origin: corsOrigins,
       credentials: true,
     })
   )
