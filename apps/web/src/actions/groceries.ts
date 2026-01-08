@@ -5,6 +5,8 @@ import { db, eq, and, isNull, lt, isNotNull } from "@amigo/db";
 import { groceryItems, groceryItemTags } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 import { publishHouseholdUpdate } from "@/lib/redis";
+import { addToBatch } from "@/lib/push/batching";
+import { scheduleBatchProcessing } from "@/lib/push/sender";
 
 export async function addItem(
   name: string,
@@ -48,6 +50,15 @@ export async function addItem(
     type: "GROCERY_UPDATE",
   });
 
+  // Queue push notification for batching
+  addToBatch(session.householdId, {
+    type: "add",
+    itemName: name.trim(),
+    actorUserId: session.userId,
+    actorName: session.name ?? "Someone",
+  });
+  scheduleBatchProcessing(session.householdId);
+
   revalidatePath("/groceries");
 
   return item;
@@ -89,6 +100,17 @@ export async function toggleItem(id: string) {
     householdId: session.householdId,
     type: "GROCERY_UPDATE",
   });
+
+  // Send push notification only when marking as purchased (not when un-marking)
+  if (!existing.isPurchased) {
+    addToBatch(session.householdId, {
+      type: "purchase",
+      itemName: existing.itemName,
+      actorUserId: session.userId,
+      actorName: session.name ?? "Someone",
+    });
+    scheduleBatchProcessing(session.householdId);
+  }
 
   revalidatePath("/groceries");
 
@@ -165,6 +187,46 @@ export async function updateItemTags(itemId: string, tagIds: string[]) {
   });
 
   revalidatePath("/groceries");
+}
+
+export async function updateItem(id: string, name: string) {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    throw new Error("Item name cannot be empty");
+  }
+
+  const [updated] = await db
+    .update(groceryItems)
+    .set({
+      itemName: trimmedName,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(groceryItems.id, id),
+        eq(groceryItems.householdId, session.householdId),
+        isNull(groceryItems.deletedAt)
+      )
+    )
+    .returning();
+
+  if (!updated) {
+    throw new Error("Item not found");
+  }
+
+  await publishHouseholdUpdate({
+    householdId: session.householdId,
+    type: "GROCERY_UPDATE",
+  });
+
+  revalidatePath("/groceries");
+
+  return updated;
 }
 
 export async function clearOldPurchasedItems() {

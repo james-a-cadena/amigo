@@ -17,16 +17,18 @@ export default async function TransactionsPage() {
   const analytics = await getBudgetAnalytics(session.householdId, session.userId);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-6 lg:grid-cols-2 w-full max-w-full overflow-hidden">
       {/* Charts Section */}
-      <BudgetCharts
-        totalSpending={analytics.totalSpending}
-        categoryData={analytics.categoryData}
-        monthlyComparison={analytics.monthlyComparison}
-      />
+      <div className="min-w-0">
+        <BudgetCharts
+          totalSpending={analytics.totalSpending}
+          categoryData={analytics.categoryData}
+          monthlyComparison={analytics.monthlyComparison}
+        />
+      </div>
 
       {/* Transaction List Section */}
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0">
         <h2 className="text-xl font-semibold">Recent Transactions</h2>
         <TransactionList />
       </div>

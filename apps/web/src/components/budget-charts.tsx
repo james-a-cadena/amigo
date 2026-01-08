@@ -63,10 +63,13 @@ export function BudgetCharts({
   const hasData = categoryData.length > 0;
   const hasComparisonData = monthlyComparison && monthlyComparison.length > 0;
 
-  // Wait for layout to stabilize before rendering charts to avoid ResponsiveContainer warnings
+  // Wait for client-side hydration before rendering charts
   useEffect(() => {
-    const timeout = setTimeout(() => setIsReady(true), 0);
-    return () => clearTimeout(timeout);
+    // Use requestAnimationFrame to avoid synchronous setState warning
+    const rafId = requestAnimationFrame(() => {
+      setIsReady(true);
+    });
+    return () => cancelAnimationFrame(rafId);
   }, []);
 
   // Get current and last month names for the comparison chart
@@ -77,7 +80,7 @@ export function BudgetCharts({
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* Total Spending Card */}
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-3">
@@ -95,30 +98,36 @@ export function BudgetCharts({
       {hasData ? (
         <>
           {/* Pie Chart */}
-          <div className="rounded-lg border bg-card p-6">
+          <div className="rounded-lg border bg-card p-6 overflow-hidden">
             <h3 className="mb-4 text-lg font-semibold">Spending by Category</h3>
-            <div className="h-64">
+            <div className="h-72 overflow-hidden">
               {isReady && (
-                <ResponsiveContainer width="100%" height={256}>
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={categoryData}
                       cx="50%"
-                      cy="50%"
+                      cy="35%"
                       labelLine={false}
-                      outerRadius={80}
+                      outerRadius={70}
                       dataKey="amount"
                       nameKey="category"
-                      label={({ name, percent }) =>
-                        `${name ?? ""} (${((percent ?? 0) * 100).toFixed(0)}%)`
-                      }
                     >
                       {categoryData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                    <Legend />
+                    <Tooltip
+                      formatter={(value, _name, props) => [
+                        formatCurrency(value as number),
+                        props.payload?.category
+                      ]}
+                    />
+                    <Legend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               )}
@@ -127,26 +136,30 @@ export function BudgetCharts({
 
           {/* Month-over-Month Comparison Bar Chart */}
           {hasComparisonData && (
-            <div className="rounded-lg border bg-card p-6">
+            <div className="rounded-lg border bg-card p-6 overflow-hidden">
               <h3 className="mb-4 text-lg font-semibold">
                 {thisMonthName} vs {lastMonthName}
               </h3>
-              <div className="h-64">
+              <div className="h-64 overflow-hidden">
                 {isReady && (
-                  <ResponsiveContainer width="100%" height={256}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={monthlyComparison} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" tickFormatter={(v) => `$${v}`} />
+                      <XAxis
+                        type="number"
+                        tickFormatter={(v) => `$${v}`}
+                        tick={{ fontSize: 10 }}
+                      />
                       <YAxis
                         type="category"
                         dataKey="category"
-                        width={100}
-                        tick={{ fontSize: 12 }}
+                        width={70}
+                        tick={{ fontSize: 10 }}
                       />
                       <Tooltip
                         formatter={(value) => formatCurrency(value as number)}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: "12px" }} />
                       <Bar
                         dataKey="thisMonth"
                         name={thisMonthName}
@@ -166,19 +179,23 @@ export function BudgetCharts({
 
           {/* Fallback: Category Breakdown (when no comparison data) */}
           {!hasComparisonData && (
-            <div className="rounded-lg border bg-card p-6">
+            <div className="rounded-lg border bg-card p-6 overflow-hidden">
               <h3 className="mb-4 text-lg font-semibold">Category Breakdown</h3>
-              <div className="h-64">
+              <div className="h-64 overflow-hidden">
                 {isReady && (
-                  <ResponsiveContainer width="100%" height={256}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={categoryData} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" tickFormatter={(v) => `$${v}`} />
+                      <XAxis
+                        type="number"
+                        tickFormatter={(v) => `$${v}`}
+                        tick={{ fontSize: 10 }}
+                      />
                       <YAxis
                         type="category"
                         dataKey="category"
-                        width={100}
-                        tick={{ fontSize: 12 }}
+                        width={70}
+                        tick={{ fontSize: 10 }}
                       />
                       <Tooltip
                         formatter={(value) => formatCurrency(value as number)}

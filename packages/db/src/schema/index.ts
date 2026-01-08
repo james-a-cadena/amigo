@@ -9,3 +9,4 @@ export * from "./debts";
 export * from "./assets";
 export * from "./audit-logs";
 export * from "./recurring";
+export * from "./push-subscriptions";

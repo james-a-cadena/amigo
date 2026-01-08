@@ -3,7 +3,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import { Loader2, Plus, Trash2, ArrowDown, ArrowUp, Pencil, Target } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowDown, ArrowUp, Pencil, Target, ChevronDown } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Loading } from "@/components/loading";
 import { BudgetSelect } from "@/components/budget-select";
@@ -92,6 +92,7 @@ export function TransactionList() {
     currency: "CAD" as CurrencyCode,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     amount: "",
@@ -480,64 +481,114 @@ export function TransactionList() {
                   </div>
                 </form>
               ) : (
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`rounded-full p-2 ${
-                        transaction.type === "income"
-                          ? "bg-green-500/10"
-                          : "bg-red-500/10"
-                      }`}
-                    >
-                      {transaction.type === "income" ? (
-                        <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          {transaction.description || transaction.category}
-                        </p>
-                        {transaction.budgetId && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
-                            <Target className="h-3 w-3" />
-                            {transaction.budgetName || "Budget"}
-                          </span>
+                <div>
+                  {/* Main row - tappable */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expandedId === transaction.id ? null : transaction.id)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div
+                        className={`shrink-0 rounded-full p-2 ${
+                          transaction.type === "income"
+                            ? "bg-green-500/10"
+                            : "bg-red-500/10"
+                        }`}
+                      >
+                        {transaction.type === "income" ? (
+                          <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {transaction.category} • {formatDate(transaction.date)}
-                      </p>
+                      <div className="overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">
+                            {transaction.description || transaction.category}
+                          </p>
+                          {transaction.budgetId && (
+                            <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded">
+                              <Target className="h-3 w-3" />
+                              <span className="hidden sm:inline">
+                                {transaction.budgetName || "Budget"}
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {transaction.category} • {formatDate(transaction.date)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`font-semibold ${
-                        transaction.type === "income"
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {transaction.type === "income" ? "+" : "-"}
-                      {formatCurrency(transaction.amount, transaction.currency)}
-                    </span>
-                    <button
-                      onClick={() => handleStartEdit(transaction)}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label="Edit transaction"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(transaction.id)}
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label="Delete transaction"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`font-semibold whitespace-nowrap ${
+                          transaction.type === "income"
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {transaction.type === "income" ? "+" : "-"}
+                        {formatCurrency(transaction.amount, transaction.currency)}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${
+                          expandedId === transaction.id ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Expanded details */}
+                  {expandedId === transaction.id && (
+                    <div className="px-4 pb-3 pt-1 bg-accent/30 border-t border-border/50">
+                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                        <div>
+                          <p className="text-muted-foreground text-xs">Category</p>
+                          <p className="font-medium">{transaction.category}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Date</p>
+                          <p className="font-medium">{formatDate(transaction.date)}</p>
+                        </div>
+                        {transaction.description && (
+                          <div className="col-span-2">
+                            <p className="text-muted-foreground text-xs">Description</p>
+                            <p className="font-medium">{transaction.description}</p>
+                          </div>
+                        )}
+                        {transaction.budgetId && (
+                          <div className="col-span-2">
+                            <p className="text-muted-foreground text-xs">Budget</p>
+                            <p className="font-medium">{transaction.budgetName || "Budget"}</p>
+                          </div>
+                        )}
+                        {transaction.currency !== "CAD" && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Currency</p>
+                            <p className="font-medium">{transaction.currency}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleStartEdit(transaction)}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(transaction.id)}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-md border border-destructive/50 px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

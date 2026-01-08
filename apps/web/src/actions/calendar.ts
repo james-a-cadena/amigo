@@ -4,6 +4,16 @@ import { db, eq, and, isNull, gte, lte, isNotNull } from "@amigo/db";
 import { recurringTransactions, groceryItems, transactions } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 
+/**
+ * Normalize a date-only value from Postgres.
+ * Drizzle returns `date` columns as Date objects at midnight UTC.
+ * When TZ is set, this can shift the date incorrectly.
+ * This function extracts the UTC date components and creates a local date.
+ */
+function normalizeDateOnly(d: Date): Date {
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
 export interface CalendarEvent {
   id: string;
   type: "recurring" | "grocery_purchase" | "transaction";
@@ -177,28 +187,42 @@ export async function getCalendarEvents(
   const events: CalendarEvent[] = [];
 
   // Add recurring rule occurrences
+  // Normalize date-only fields from Postgres to avoid TZ shift issues
   for (const rule of recurringRules) {
-    const occurrences = getRecurringOccurrences(rule, monthStart, monthEnd);
+    const normalizedRule = {
+      ...rule,
+      startDate: normalizeDateOnly(rule.startDate),
+      endDate: rule.endDate ? normalizeDateOnly(rule.endDate) : null,
+      nextRunDate: normalizeDateOnly(rule.nextRunDate),
+      lastRunDate: rule.lastRunDate ? normalizeDateOnly(rule.lastRunDate) : null,
+    };
+    const occurrences = getRecurringOccurrences(normalizedRule, monthStart, monthEnd);
     events.push(...occurrences);
   }
 
   // Group groceries by purchase date and create events
-  const groceryByDate = new Map<string, typeof purchasedGroceries>();
+  // Use local date (not UTC) to match user's perspective
+  const groceryByDate = new Map<string, { date: Date; items: typeof purchasedGroceries }>();
   for (const item of purchasedGroceries) {
     if (!item.purchasedAt) continue;
-    const dateKey = item.purchasedAt.toISOString().split("T")[0] ?? "";
-    if (!dateKey) continue;
+    // Format as local date YYYY-MM-DD
+    const d = item.purchasedAt;
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     if (!groceryByDate.has(dateKey)) {
-      groceryByDate.set(dateKey, []);
+      // Store the date at midnight local time for this day
+      groceryByDate.set(dateKey, {
+        date: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+        items: [],
+      });
     }
-    groceryByDate.get(dateKey)!.push(item);
+    groceryByDate.get(dateKey)!.items.push(item);
   }
 
-  for (const [dateKey, items] of groceryByDate) {
+  for (const [dateKey, { date, items }] of groceryByDate) {
     events.push({
       id: `grocery-${dateKey}`,
       type: "grocery_purchase",
-      date: new Date(dateKey),
+      date,
       title: `${items.length} item${items.length !== 1 ? "s" : ""} purchased`,
       color: "orange",
       metadata: {
@@ -208,11 +232,12 @@ export async function getCalendarEvents(
   }
 
   // Add transactions
+  // Normalize date-only fields from Postgres to avoid TZ shift issues
   for (const tx of monthTransactions) {
     events.push({
       id: `transaction-${tx.id}`,
       type: "transaction",
-      date: tx.date,
+      date: normalizeDateOnly(tx.date),
       title: tx.description || tx.category,
       subtitle: tx.description ? tx.category : undefined,
       color: tx.type === "income" ? "green" : "blue",
@@ -233,9 +258,9 @@ export async function getCalendarEvents(
       type: r.type,
       frequency: r.frequency,
       interval: r.interval,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      nextRunDate: r.nextRunDate,
+      startDate: normalizeDateOnly(r.startDate),
+      endDate: r.endDate ? normalizeDateOnly(r.endDate) : null,
+      nextRunDate: normalizeDateOnly(r.nextRunDate),
       active: r.active,
     })),
   };

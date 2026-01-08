@@ -2,6 +2,9 @@
 
 FROM oven/bun:1.1-alpine
 
+# Install timezone data for TZ environment variable support
+RUN apk add --no-cache tzdata
+
 WORKDIR /app
 
 # Copy all workspace files for dependency resolution

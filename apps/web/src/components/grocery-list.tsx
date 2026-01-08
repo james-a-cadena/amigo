@@ -9,9 +9,10 @@ import {
 } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { useRouter } from "next/navigation";
-import { addItem, toggleItem, deleteItem, updateItemTags } from "@/actions/groceries";
+import { addItem, toggleItem, deleteItem, updateItemTags, updateItem } from "@/actions/groceries";
 import { createTag, deleteTag, updateTag } from "@/actions/tags";
 import { useConfirm } from "@/components/confirm-provider";
+import { OfflineIndicator } from "@/components/offline-indicator";
 import type { GroceryItem, GroceryTag, GroceryItemTag } from "@amigo/db";
 
 // Extended type for grocery items with their tags
@@ -23,13 +24,16 @@ interface GroceryListProps {
   initialItems: GroceryItemWithTags[];
   allTags: GroceryTag[];
   wsUrl: string;
+  householdId: string;
+  userId: string;
 }
 
 type OptimisticAction =
   | { type: "add"; item: GroceryItemWithTags }
   | { type: "toggle"; id: string }
   | { type: "delete"; id: string }
-  | { type: "update_tags"; id: string; tagIds: string[]; allTags: GroceryTag[] };
+  | { type: "update_tags"; id: string; tagIds: string[]; allTags: GroceryTag[] }
+  | { type: "edit_name"; id: string; name: string };
 
 function groceryReducer(
   state: GroceryItemWithTags[],
@@ -71,6 +75,12 @@ function groceryReducer(
                 };
               }),
             }
+          : item
+      );
+    case "edit_name":
+      return state.map((item) =>
+        item.id === action.id
+          ? { ...item, itemName: action.name, updatedAt: new Date() }
           : item
       );
     default:
@@ -866,6 +876,8 @@ export function GroceryList({
   initialItems,
   allTags: initialTags,
   wsUrl,
+  householdId: _householdId,
+  userId: _userId,
 }: GroceryListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -874,6 +886,8 @@ export function GroceryList({
   const [allTags, setAllTags] = useState(initialTags);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemName, setEditItemName] = useState("");
   const [optimisticItems, addOptimistic] = useOptimistic(
     initialItems,
     groceryReducer
@@ -1050,6 +1064,28 @@ export function GroceryList({
     });
   };
 
+  const handleStartEdit = (item: GroceryItemWithTags) => {
+    setEditingItemId(item.id);
+    setEditItemName(item.itemName);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setEditItemName("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItemId || !editItemName.trim()) return;
+    const newName = editItemName.trim();
+    const itemId = editingItemId;
+    setEditingItemId(null);
+    setEditItemName("");
+    startTransition(async () => {
+      addOptimistic({ type: "edit_name", id: itemId, name: newName });
+      await updateItem(itemId, newName);
+    });
+  };
+
   const handleCreateTagForItem = async (name: string, color: string) => {
     const newTag = await createTag(name, color);
     if (newTag) {
@@ -1203,21 +1239,51 @@ export function GroceryList({
               key={item.id}
               className="flex items-center justify-between px-4 py-3"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <input
                   type="checkbox"
                   checked={item.isPurchased}
                   onChange={() => handleToggleItem(item.id)}
-                  className="h-5 w-5 rounded border-input bg-background text-primary focus:ring-primary"
+                  className="h-5 w-5 shrink-0 rounded border-input bg-background text-primary focus:ring-primary"
                 />
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-foreground">{item.itemName}</span>
-                  {item.groceryItemTags.map((itemTag) => (
-                    <TagBadge key={itemTag.tagId} tag={itemTag.groceryTag} />
-                  ))}
-                </div>
+                {editingItemId === item.id ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveEdit();
+                    }}
+                    className="flex flex-1 items-center gap-2 min-w-0"
+                  >
+                    <input
+                      type="text"
+                      value={editItemName}
+                      onChange={(e) => setEditItemName(e.target.value)}
+                      onBlur={handleSaveEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          handleCancelEdit();
+                        }
+                      }}
+                      autoFocus
+                      className="flex-1 min-w-0 rounded-md border border-input bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </form>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(item)}
+                      className="text-foreground text-left hover:underline focus:outline-none focus:underline truncate"
+                    >
+                      {item.itemName}
+                    </button>
+                    {item.groceryItemTags.map((itemTag) => (
+                      <TagBadge key={itemTag.tagId} tag={itemTag.groceryTag} />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <ItemTagSelector
                   item={item}
                   allTags={allTags}
@@ -1309,6 +1375,9 @@ export function GroceryList({
           )}
         </div>
       )}
+
+      {/* Offline indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

@@ -135,6 +135,9 @@ services:
       AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
       APP_URL: https://amigo.cadenalabs.net
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
     networks:
       - amigo-network
     depends_on:
@@ -182,6 +185,9 @@ services:
       AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
       APP_URL: https://dev-amigo.cadenalabs.net
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
     networks:
       - amigo-network
     depends_on:
@@ -200,6 +206,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      TZ: ${TZ:-America/Toronto}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}_dev
       VALKEY_URL: redis://valkey:6379
       AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
@@ -207,6 +214,9 @@ services:
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
       APP_URL: https://dev-amigo.cadenalabs.net
       WATCHPACK_POLLING: "true"
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
     networks:
       - amigo-network
     volumes:

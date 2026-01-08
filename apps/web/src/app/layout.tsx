@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <Providers>
+            <ServiceWorkerRegister />
             <AppShell>{children}</AppShell>
           </Providers>
         </ThemeProvider>

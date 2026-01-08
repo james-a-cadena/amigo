@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { GroceryList } from "@/components/grocery-list";
 import { clearOldPurchasedItems } from "@/actions/groceries";
+import { PushNotificationButton } from "@/components/push-notification-button";
 
 // Force dynamic rendering - page queries database
 export const dynamic = "force-dynamic";
@@ -50,12 +51,21 @@ export default async function GroceriesPage() {
 
   return (
     <main className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Groceries</h1>
-        <p className="text-muted-foreground">Manage your shopping list</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Groceries</h1>
+          <p className="text-muted-foreground">Manage your shopping list</p>
+        </div>
+        <PushNotificationButton />
       </div>
 
-      <GroceryList initialItems={items} allTags={allTags} wsUrl={wsUrl} />
+      <GroceryList
+        initialItems={items}
+        allTags={allTags}
+        wsUrl={wsUrl}
+        householdId={session.householdId}
+        userId={session.userId}
+      />
     </main>
   );
 }
