@@ -5,6 +5,7 @@ import { db, eq, and, sql } from "@amigo/db";
 import { groceryTags } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 import { publishHouseholdUpdate } from "@/lib/redis";
+import { notFoundError, unauthorizedError } from "@/lib/errors";
 import { z } from "zod";
 import { TAG_COLORS } from "@amigo/types";
 
@@ -25,7 +26,7 @@ const tagIdSchema = z.string().uuid("Invalid tag ID");
 export async function getTags() {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const tags = await db.query.groceryTags.findMany({
@@ -41,7 +42,7 @@ export async function createTag(name: string, color?: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const trimmedName = validated.name.trim();
@@ -80,7 +81,7 @@ export async function updateTag(id: string, name: string, color: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const trimmedName = validated.name.trim();
@@ -93,7 +94,7 @@ export async function updateTag(id: string, name: string, color: string) {
   });
 
   if (!existing) {
-    throw new Error("Tag not found");
+    throw notFoundError("Tag");
   }
 
   const duplicate = await db.query.groceryTags.findFirst({
@@ -133,7 +134,7 @@ export async function deleteTag(id: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const [deleted] = await db
@@ -144,7 +145,7 @@ export async function deleteTag(id: string) {
     .returning();
 
   if (!deleted) {
-    throw new Error("Tag not found");
+    throw notFoundError("Tag");
   }
 
   revalidatePath("/groceries");

@@ -8,6 +8,7 @@ import { publishHouseholdUpdate } from "@/lib/redis";
 import { addToBatch } from "@/lib/push/batching";
 import { scheduleBatchProcessing } from "@/lib/push/sender";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { notFoundError, unauthorizedError, logServerError } from "@/lib/errors";
 import { z } from "zod";
 import { DEFAULT_GROCERY_CATEGORY } from "@amigo/types";
 
@@ -41,7 +42,7 @@ export async function addItem(
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const item = await withAuditContext(session.authId, async (tx) => {
@@ -56,7 +57,8 @@ export async function addItem(
       .returning();
 
     if (!inserted) {
-      throw new Error("Failed to insert grocery item");
+      logServerError("addItem", new Error("Insert returned empty result"), { householdId: session.householdId });
+      throw notFoundError("Item");
     }
 
     if (validated.tagIds && validated.tagIds.length > 0) {
@@ -99,7 +101,7 @@ export async function toggleItem(id: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const existing = await db.query.groceryItems.findFirst({
@@ -111,7 +113,7 @@ export async function toggleItem(id: string) {
   });
 
   if (!existing) {
-    throw new Error("Item not found");
+    throw notFoundError("Item");
   }
 
   const [updated] = await withAuditContext(session.authId, async (tx) => {
@@ -160,7 +162,7 @@ export async function deleteItem(id: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const [deleted] = await withAuditContext(session.authId, async (tx) => {
@@ -177,7 +179,7 @@ export async function deleteItem(id: string) {
   });
 
   if (!deleted) {
-    throw new Error("Item not found");
+    throw notFoundError("Item");
   }
 
   await publishHouseholdUpdate({
@@ -199,7 +201,7 @@ export async function updateItemTags(itemId: string, tagIds: string[]) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const existing = await db.query.groceryItems.findFirst({
@@ -211,7 +213,7 @@ export async function updateItemTags(itemId: string, tagIds: string[]) {
   });
 
   if (!existing) {
-    throw new Error("Item not found");
+    throw notFoundError("Item");
   }
 
   await db.transaction(async (tx) => {
@@ -246,7 +248,7 @@ export async function updateItem(id: string, name: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const [updated] = await withAuditContext(session.authId, async (tx) => {
@@ -267,7 +269,7 @@ export async function updateItem(id: string, name: string) {
   });
 
   if (!updated) {
-    throw new Error("Item not found");
+    throw notFoundError("Item");
   }
 
   await publishHouseholdUpdate({

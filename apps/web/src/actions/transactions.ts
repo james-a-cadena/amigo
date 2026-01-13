@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { publishHouseholdUpdate } from "@/lib/redis";
 import { getExchangeRateForRecord } from "@/lib/exchange-rates";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { notFoundError, unauthorizedError } from "@/lib/errors";
 import { z } from "zod";
 
 // Validation schemas
@@ -59,7 +60,7 @@ export async function addTransaction(input: AddTransactionInput) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const currency = validated.currency ?? "CAD";
@@ -112,7 +113,7 @@ export async function updateTransaction(input: UpdateTransactionInput) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const updateData: Partial<typeof transactions.$inferInsert> = {};
@@ -169,7 +170,7 @@ export async function updateTransaction(input: UpdateTransactionInput) {
   });
 
   if (!transaction) {
-    throw new Error("Transaction not found");
+    throw notFoundError("Transaction");
   }
 
   await publishHouseholdUpdate({
@@ -189,7 +190,7 @@ export async function deleteTransaction(id: string) {
 
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const visibilityCondition = or(
@@ -217,7 +218,7 @@ export async function deleteTransaction(id: string) {
   });
 
   if (!deleted) {
-    throw new Error("Transaction not found");
+    throw notFoundError("Transaction");
   }
 
   await publishHouseholdUpdate({
