@@ -177,6 +177,19 @@ export async function updateSessionRole(newRole: UserRole): Promise<boolean> {
   return true;
 }
 
+/**
+ * Get session cookie configuration options.
+ *
+ * SECURITY NOTE: In production, the cookie domain is set to ".cadenalabs.net"
+ * which scopes it to all subdomains. This enables SSO across amigo.cadenalabs.net
+ * and dev-amigo.cadenalabs.net, but means the session cookie is shared with any
+ * other subdomains on cadenalabs.net.
+ *
+ * Risk: If another subdomain is compromised, the session could potentially be stolen.
+ * Mitigation: Ensure no untrusted applications are hosted on cadenalabs.net subdomains.
+ * If additional subdomains are added in the future, consider tighter cookie scoping
+ * or implementing a dedicated auth service.
+ */
 export function getSessionCookieOptions() {
   const isProduction = process.env["NODE_ENV"] === "production";
   return {
