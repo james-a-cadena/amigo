@@ -1,9 +1,13 @@
 import { cookies } from "next/headers";
-import { redis } from "./redis";
+import { redis, publishSessionInvalidation } from "./redis";
 import type { User, UserRole } from "@amigo/db";
 
 const SESSION_COOKIE = "amigo_session";
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
+
+// Key for tracking when push subscription cleanup was last run
+const PUSH_CLEANUP_KEY = "push_cleanup_last_run";
+const PUSH_CLEANUP_INTERVAL = 60 * 60 * 6; // Run cleanup at most every 6 hours
 
 export interface Session {
   userId: string;
@@ -38,6 +42,33 @@ export async function createSession(user: User): Promise<string> {
   return sessionId;
 }
 
+/**
+ * Trigger stale push subscription cleanup if enough time has passed.
+ * Uses Redis to coordinate cleanup across instances.
+ */
+async function maybeCleanupStalePushSubscriptions(): Promise<void> {
+  try {
+    // Use SET NX with TTL to ensure only one instance runs cleanup
+    const acquired = await redis.set(
+      PUSH_CLEANUP_KEY,
+      Date.now().toString(),
+      "EX",
+      PUSH_CLEANUP_INTERVAL,
+      "NX"
+    );
+
+    if (acquired) {
+      // We acquired the lock, run cleanup in background
+      const { cleanupStalePushSubscriptions } = await import("@/actions/push");
+      cleanupStalePushSubscriptions().catch((err) => {
+        console.error("Push subscription cleanup failed:", err);
+      });
+    }
+  } catch {
+    // Ignore cleanup errors - this is a best-effort operation
+  }
+}
+
 export async function getSession(): Promise<Session | null> {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
@@ -53,6 +84,9 @@ export async function getSession(): Promise<Session | null> {
 
   // Refresh TTL on access
   await redis.expire(getSessionKey(sessionId), SESSION_TTL);
+
+  // Occasionally trigger stale push subscription cleanup
+  maybeCleanupStalePushSubscriptions();
 
   const session = JSON.parse(data) as Session;
 
@@ -88,6 +122,8 @@ export async function deleteSession(): Promise<void> {
 
   if (sessionId) {
     await redis.del(getSessionKey(sessionId));
+    // Notify API server to close any WebSocket connections for this session
+    await publishSessionInvalidation(sessionId);
   }
 }
 
@@ -141,6 +177,19 @@ export async function updateSessionRole(newRole: UserRole): Promise<boolean> {
   return true;
 }
 
+/**
+ * Get session cookie configuration options.
+ *
+ * SECURITY NOTE: In production, the cookie domain is set to ".cadenalabs.net"
+ * which scopes it to all subdomains. This enables SSO across amigo.cadenalabs.net
+ * and dev-amigo.cadenalabs.net, but means the session cookie is shared with any
+ * other subdomains on cadenalabs.net.
+ *
+ * Risk: If another subdomain is compromised, the session could potentially be stolen.
+ * Mitigation: Ensure no untrusted applications are hosted on cadenalabs.net subdomains.
+ * If additional subdomains are added in the future, consider tighter cookie scoping
+ * or implementing a dedicated auth service.
+ */
 export function getSessionCookieOptions() {
   const isProduction = process.env["NODE_ENV"] === "production";
   return {

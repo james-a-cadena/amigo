@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+const isDev = process.env.NODE_ENV === "development";
+
 export default function GlobalError({
   error,
   reset,
@@ -10,10 +12,15 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Global error:", error);
+    // Log errors appropriately based on environment
+    if (isDev) {
+      // In development, log full error for debugging
+      console.error("Global error:", error);
+    } else {
+      // In production, log minimal info (digest is safe to log)
+      console.error("Global error occurred", error.digest ? `(digest: ${error.digest})` : "");
+    }
   }, [error]);
-
-  const isDev = process.env.NODE_ENV === "development";
 
   return (
     <html lang="en">

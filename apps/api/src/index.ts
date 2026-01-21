@@ -15,7 +15,23 @@ import type { WebSocketData } from "./ws/handler";
 import { getSessionFromCookie } from "./lib/session";
 import { rateLimit } from "./lib/rate-limit";
 
-// CORS origins from env or defaults based on NODE_ENV
+// ============================================================================
+// Environment Variable Validation
+// ============================================================================
+const requiredEnvVars = ["VALKEY_URL"] as const;
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`FATAL: Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
+
+// ============================================================================
+// CORS Configuration
+// ============================================================================
+// SECURITY NOTE: CORS_ORIGINS should never be set to "*" in production.
+// The default origins are explicitly allowlisted for the production domain.
 const defaultOrigins =
   process.env["NODE_ENV"] === "production"
     ? ["https://amigo.cadenalabs.net"]
@@ -23,6 +39,16 @@ const defaultOrigins =
 const corsOrigins = process.env["CORS_ORIGINS"]
   ? process.env["CORS_ORIGINS"].split(",").map((o) => o.trim())
   : defaultOrigins;
+
+// Warn if CORS is configured with wildcard in production
+if (
+  process.env["NODE_ENV"] === "production" &&
+  corsOrigins.includes("*")
+) {
+  console.warn(
+    "WARNING: CORS is configured with wildcard (*) in production. This is a security risk."
+  );
+}
 
 const app = new Hono()
   .use("*", logger())
@@ -76,6 +102,7 @@ const server = Bun.serve<WebSocketData>({
       const success = server.upgrade(req, {
         data: {
           householdId: session.householdId,
+          sessionId: session.sessionId,
         },
       });
 

@@ -5,6 +5,7 @@ import { db, eq, and, or, isNull, gte, lte, sql } from "@amigo/db";
 import { budgets, transactions } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
 import { canManageSharedBudgets } from "@/lib/permissions";
+import { notFoundError, unauthorizedError, permissionDeniedError } from "@/lib/errors";
 import { z } from "zod";
 
 import type { CurrencyCode } from "@amigo/db/schema";
@@ -76,7 +77,7 @@ function getPeriodBounds(period: "weekly" | "monthly" | "yearly"): {
 export async function getBudgetsWithSpending(): Promise<BudgetWithSpending[]> {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const userBudgets = await db.query.budgets.findMany({
@@ -146,7 +147,7 @@ export async function getBudgetsWithSpending(): Promise<BudgetWithSpending[]> {
 export async function getBudgets() {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const userBudgets = await db.query.budgets.findMany({
@@ -170,14 +171,14 @@ export async function getBudgets() {
 export async function createBudget(input: BudgetInput) {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const validated = budgetSchema.parse(input);
 
   // Only owners/admins can create shared budgets
   if (validated.isShared && !canManageSharedBudgets(session)) {
-    throw new Error("Only owners and admins can create shared budgets");
+    throw permissionDeniedError("Only owners and admins can create shared budgets");
   }
 
   const [budget] = await db
@@ -201,7 +202,7 @@ export async function createBudget(input: BudgetInput) {
 export async function updateBudget(id: string, input: BudgetInput) {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   const validated = budgetSchema.parse(input);
@@ -216,7 +217,7 @@ export async function updateBudget(id: string, input: BudgetInput) {
   });
 
   if (!existingBudget) {
-    throw new Error("Budget not found");
+    throw notFoundError("Budget");
   }
 
   const isCurrentlyShared = existingBudget.userId === null;
@@ -224,11 +225,11 @@ export async function updateBudget(id: string, input: BudgetInput) {
   // Check permissions for shared budgets
   if (isCurrentlyShared || validated.isShared) {
     if (!canManageSharedBudgets(session)) {
-      throw new Error("Only owners and admins can modify shared budgets");
+      throw permissionDeniedError("Only owners and admins can modify shared budgets");
     }
   } else if (existingBudget.userId !== session.userId) {
     // Cannot modify another user's personal budget
-    throw new Error("Cannot modify another user's personal budget");
+    throw permissionDeniedError("Cannot modify another user's personal budget");
   }
 
   const [updated] = await db
@@ -251,7 +252,7 @@ export async function updateBudget(id: string, input: BudgetInput) {
     .returning();
 
   if (!updated) {
-    throw new Error("Budget not found");
+    throw notFoundError("Budget");
   }
 
   revalidatePath("/budget");
@@ -262,7 +263,7 @@ export async function updateBudget(id: string, input: BudgetInput) {
 export async function deleteBudget(id: string) {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    throw unauthorizedError();
   }
 
   // Get existing budget to check permissions
@@ -275,7 +276,7 @@ export async function deleteBudget(id: string) {
   });
 
   if (!existingBudget) {
-    throw new Error("Budget not found");
+    throw notFoundError("Budget");
   }
 
   const isShared = existingBudget.userId === null;
@@ -283,10 +284,10 @@ export async function deleteBudget(id: string) {
   // Check permissions for shared budgets
   if (isShared) {
     if (!canManageSharedBudgets(session)) {
-      throw new Error("Only owners and admins can delete shared budgets");
+      throw permissionDeniedError("Only owners and admins can delete shared budgets");
     }
   } else if (existingBudget.userId !== session.userId) {
-    throw new Error("Cannot delete another user's personal budget");
+    throw permissionDeniedError("Cannot delete another user's personal budget");
   }
 
   const [deleted] = await db
@@ -301,7 +302,7 @@ export async function deleteBudget(id: string) {
     .returning();
 
   if (!deleted) {
-    throw new Error("Budget not found");
+    throw notFoundError("Budget");
   }
 
   revalidatePath("/budget");

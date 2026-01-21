@@ -10,6 +10,16 @@ const vapidPrivateKey = process.env["VAPID_PRIVATE_KEY"];
 
 if (vapidSubject && vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+} else {
+  // Log warning at startup so operators know push notifications are disabled
+  const missing: string[] = [];
+  if (!vapidSubject) missing.push("VAPID_SUBJECT");
+  if (!vapidPublicKey) missing.push("NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+  if (!vapidPrivateKey) missing.push("VAPID_PRIVATE_KEY");
+
+  console.warn(
+    `WARNING: Push notifications disabled - missing VAPID keys: ${missing.join(", ")}`
+  );
 }
 
 interface NotificationPayload {
