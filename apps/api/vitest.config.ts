@@ -17,5 +17,11 @@ export default defineConfig({
     deps: {
       interopDefault: true,
     },
+    // Inline zod to prevent SSR module resolution issues
+    server: {
+      deps: {
+        inline: ["zod", "@hono/zod-validator"],
+      },
+    },
   },
 });
