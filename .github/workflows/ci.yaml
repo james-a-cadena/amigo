@@ -45,6 +45,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Clean turbo cache
+        run: rm -rf .turbo node_modules/.cache
+
       - name: Install dependencies
         run: ~/.bun/bin/bun install --frozen-lockfile
 
