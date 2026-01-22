@@ -6,29 +6,37 @@ import {
   useTransition,
   useEffect,
   useRef,
+  useCallback,
 } from "react";
+import { EmptyState } from "@/components/empty-state";
 import { useRouter } from "next/navigation";
-import { addItem, toggleItem, deleteItem, updateItemTags } from "@/actions/groceries";
-import { createTag, deleteTag } from "@/actions/tags";
+import { addItem, toggleItem, deleteItem, updateItemTags, updateItem } from "@/actions/groceries";
+import { createTag, deleteTag, updateTag } from "@/actions/tags";
 import { useConfirm } from "@/components/confirm-provider";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import { useWebSocket } from "@/hooks/use-websocket";
 import type { GroceryItem, GroceryTag, GroceryItemTag } from "@amigo/db";
 
-// Extended type for grocery items with their tags
+// Extended type for grocery items with their tags and creator
 type GroceryItemWithTags = GroceryItem & {
   groceryItemTags: (GroceryItemTag & { groceryTag: GroceryTag })[];
+  createdByUser: { id: string; name: string | null; email: string } | null;
 };
 
 interface GroceryListProps {
   initialItems: GroceryItemWithTags[];
   allTags: GroceryTag[];
   wsUrl: string;
+  householdId: string;
+  userId: string;
 }
 
 type OptimisticAction =
   | { type: "add"; item: GroceryItemWithTags }
   | { type: "toggle"; id: string }
   | { type: "delete"; id: string }
-  | { type: "update_tags"; id: string; tagIds: string[]; allTags: GroceryTag[] };
+  | { type: "update_tags"; id: string; tagIds: string[]; allTags: GroceryTag[] }
+  | { type: "edit_name"; id: string; name: string };
 
 function groceryReducer(
   state: GroceryItemWithTags[],
@@ -40,7 +48,11 @@ function groceryReducer(
     case "toggle":
       return state.map((item) =>
         item.id === action.id
-          ? { ...item, isPurchased: !item.isPurchased }
+          ? {
+              ...item,
+              isPurchased: !item.isPurchased,
+              purchasedAt: item.isPurchased ? null : new Date(),
+            }
           : item
       );
     case "delete":
@@ -66,6 +78,12 @@ function groceryReducer(
                 };
               }),
             }
+          : item
+      );
+    case "edit_name":
+      return state.map((item) =>
+        item.id === action.id
+          ? { ...item, itemName: action.name, updatedAt: new Date() }
           : item
       );
     default:
@@ -111,12 +129,69 @@ function TagBadge({ tag }: { tag: GroceryTag }) {
   );
 }
 
+// Date formatting helper for history sections
+function formatHistoryDate(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (dateOnly.getTime() === today.getTime()) {
+    return "Today";
+  }
+  if (dateOnly.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  }
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+    >
+      <path
+        fillRule="evenodd"
+        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+    >
+      <path
+        fillRule="evenodd"
+        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 interface TagSelectorProps {
   allTags: GroceryTag[];
   selectedTagIds: string[];
   onToggleTag: (tagId: string) => void;
   onCreateTag: (name: string, color: string) => Promise<void>;
   onDeleteTag: (tagId: string) => void;
+  onEditTag: (tagId: string, name: string, color: string) => Promise<void>;
 }
 
 function TagSelector({
@@ -125,12 +200,17 @@ function TagSelector({
   onToggleTag,
   onCreateTag,
   onDeleteTag,
+  onEditTag,
 }: TagSelectorProps) {
   const confirm = useConfirm();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [newTagColor, setNewTagColor] = useState<TagColorKey>("blue");
   const [isCreating, setIsCreating] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState<TagColorKey>("blue");
+  const [isSaving, setIsSaving] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -169,6 +249,30 @@ function TagSelector({
     }
   };
 
+  const startEditingTag = (tag: GroceryTag) => {
+    setEditingTagId(tag.id);
+    setEditName(tag.name);
+    setEditColor((tag.color in tagColors ? tag.color : "blue") as TagColorKey);
+  };
+
+  const cancelEditingTag = () => {
+    setEditingTagId(null);
+    setEditName("");
+    setEditColor("blue");
+  };
+
+  const saveEditingTag = async () => {
+    if (!editingTagId || !editName.trim()) return;
+    setIsSaving(true);
+    try {
+      await onEditTag(editingTagId, editName.trim(), editColor);
+      setEditingTagId(null);
+      setEditName("");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const colorOptions = Object.keys(swatchColors) as TagColorKey[];
 
   return (
@@ -199,7 +303,7 @@ function TagSelector({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border bg-popover p-2 shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-2 shadow-lg">
           {/* Search/Filter Input */}
           <input
             type="text"
@@ -226,6 +330,62 @@ function TagSelector({
                 const isSelected = selectedTagIds.includes(tag.id);
                 const isExactMatch =
                   tag.name.toLowerCase() === searchQuery.toLowerCase().trim();
+                const isEditing = editingTagId === tag.id;
+
+                if (isEditing) {
+                  return (
+                    <div key={tag.id} className="space-y-2 rounded-md bg-muted/50 p-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveEditingTag();
+                          } else if (e.key === "Escape") {
+                            cancelEditingTag();
+                          }
+                        }}
+                      />
+                      <div className="flex items-center gap-1">
+                        {colorOptions.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setEditColor(color)}
+                            className={`h-6 w-6 rounded-full ${swatchColors[color]} ${
+                              editColor === color
+                                ? "ring-2 ring-primary ring-offset-1"
+                                : "hover:ring-1 hover:ring-muted-foreground"
+                            }`}
+                            aria-label={`Select ${color} color`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={saveEditingTag}
+                          disabled={isSaving || !editName.trim()}
+                          className="flex-1 rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {isSaving ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditingTag}
+                          className="flex-1 rounded-md border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={tag.id}
@@ -257,6 +417,24 @@ function TagSelector({
                       )}
                       <button
                         type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTag(tag);
+                        }}
+                        className="md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                        aria-label="Edit tag"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
                         onClick={async (e) => {
                           e.stopPropagation();
                           if (await confirm({
@@ -268,12 +446,12 @@ function TagSelector({
                             onDeleteTag(tag.id);
                           }
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                        className="md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive"
                         aria-label="Delete tag"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4"
+                          className="h-5 w-5"
                           viewBox="0 0 20 20"
                           fill="currentColor"
                         >
@@ -304,7 +482,7 @@ function TagSelector({
                     key={color}
                     type="button"
                     onClick={() => setNewTagColor(color)}
-                    className={`h-6 w-6 rounded-full ${swatchColors[color]} ${
+                    className={`h-10 w-10 rounded-full ${swatchColors[color]} ${
                       newTagColor === color
                         ? "ring-2 ring-primary ring-offset-2"
                         : "hover:ring-2 hover:ring-muted-foreground hover:ring-offset-1"
@@ -335,6 +513,7 @@ interface ItemTagSelectorProps {
   onUpdateTags: (itemId: string, tagIds: string[]) => void;
   onCreateTag: (name: string, color: string) => Promise<GroceryTag | undefined>;
   onDeleteTag: (tagId: string) => void;
+  onEditTag: (tagId: string, name: string, color: string) => Promise<void>;
 }
 
 function ItemTagSelector({
@@ -343,6 +522,7 @@ function ItemTagSelector({
   onUpdateTags,
   onCreateTag,
   onDeleteTag,
+  onEditTag,
 }: ItemTagSelectorProps) {
   const confirm = useConfirm();
   const [isOpen, setIsOpen] = useState(false);
@@ -352,6 +532,10 @@ function ItemTagSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const [newTagColor, setNewTagColor] = useState<TagColorKey>("blue");
   const [isCreating, setIsCreating] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState<TagColorKey>("blue");
+  const [isSaving, setIsSaving] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Sync selected tags when item changes (e.g., from server refresh)
@@ -409,6 +593,30 @@ function ItemTagSelector({
     }
   };
 
+  const startEditingTag = (tag: GroceryTag) => {
+    setEditingTagId(tag.id);
+    setEditName(tag.name);
+    setEditColor((tag.color in tagColors ? tag.color : "blue") as TagColorKey);
+  };
+
+  const cancelEditingTag = () => {
+    setEditingTagId(null);
+    setEditName("");
+    setEditColor("blue");
+  };
+
+  const saveEditingTag = async () => {
+    if (!editingTagId || !editName.trim()) return;
+    setIsSaving(true);
+    try {
+      await onEditTag(editingTagId, editName.trim(), editColor);
+      setEditingTagId(null);
+      setEditName("");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const colorOptions = Object.keys(swatchColors) as TagColorKey[];
 
   return (
@@ -441,7 +649,7 @@ function ItemTagSelector({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-md border bg-popover p-2 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-2 shadow-lg">
           {/* Search/Filter Input */}
           <input
             type="text"
@@ -470,6 +678,73 @@ function ItemTagSelector({
                 const isSelected = selectedTagIds.includes(tag.id);
                 const isExactMatch =
                   tag.name.toLowerCase() === searchQuery.toLowerCase().trim();
+                const isEditing = editingTagId === tag.id;
+
+                if (isEditing) {
+                  return (
+                    <div key={tag.id} className="space-y-2 rounded-md bg-muted/50 p-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveEditingTag();
+                          } else if (e.key === "Escape") {
+                            cancelEditingTag();
+                          }
+                        }}
+                      />
+                      <div className="flex items-center gap-1">
+                        {colorOptions.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditColor(color);
+                            }}
+                            className={`h-6 w-6 rounded-full ${swatchColors[color]} ${
+                              editColor === color
+                                ? "ring-2 ring-primary ring-offset-1"
+                                : "hover:ring-1 hover:ring-muted-foreground"
+                            }`}
+                            aria-label={`Select ${color} color`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            saveEditingTag();
+                          }}
+                          disabled={isSaving || !editName.trim()}
+                          className="flex-1 rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {isSaving ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelEditingTag();
+                          }}
+                          className="flex-1 rounded-md border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={tag.id}
@@ -504,6 +779,24 @@ function ItemTagSelector({
                       )}
                       <button
                         type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTag(tag);
+                        }}
+                        className="md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                        aria-label="Edit tag"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
                         onClick={async (e) => {
                           e.stopPropagation();
                           if (await confirm({
@@ -515,12 +808,12 @@ function ItemTagSelector({
                             onDeleteTag(tag.id);
                           }
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                        className="md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive"
                         aria-label="Delete tag"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4"
+                          className="h-5 w-5"
                           viewBox="0 0 20 20"
                           fill="currentColor"
                         >
@@ -554,7 +847,7 @@ function ItemTagSelector({
                       e.stopPropagation();
                       setNewTagColor(color);
                     }}
-                    className={`h-6 w-6 rounded-full ${swatchColors[color]} ${
+                    className={`h-10 w-10 rounded-full ${swatchColors[color]} ${
                       newTagColor === color
                         ? "ring-2 ring-primary ring-offset-2"
                         : "hover:ring-2 hover:ring-muted-foreground hover:ring-offset-1"
@@ -586,56 +879,40 @@ export function GroceryList({
   initialItems,
   allTags: initialTags,
   wsUrl,
+  householdId: _householdId,
+  userId: _userId,
 }: GroceryListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [newItemName, setNewItemName] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [allTags, setAllTags] = useState(initialTags);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemName, setEditItemName] = useState("");
   const [optimisticItems, addOptimistic] = useOptimistic(
     initialItems,
     groceryReducer
   );
 
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    // Construct full WebSocket URL from current page location
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const fullWsUrl = `${protocol}//${window.location.host}${wsUrl}`;
-    const ws = new WebSocket(fullWsUrl);
-
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as {
-          type: string;
-          householdId: string;
-        };
-
-        if (payload.type === "GROCERY_UPDATE") {
-          // Refresh the page to get authoritative state
-          router.refresh();
-        }
-      } catch (error) {
-        console.error("Failed to parse WebSocket message:", error);
+  // WebSocket message handler
+  const handleWebSocketMessage = useCallback(
+    (data: unknown) => {
+      const payload = data as { type: string; householdId: string };
+      if (payload.type === "GROCERY_UPDATE") {
+        // Refresh to get authoritative state
+        router.refresh();
       }
-    };
+    },
+    [router]
+  );
 
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket disconnected");
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, [wsUrl, router]);
+  // WebSocket connection with auto-reconnect
+  useWebSocket({
+    url: wsUrl,
+    onMessage: handleWebSocketMessage,
+  });
 
   // Sync allTags with server state on refresh
   useEffect(() => {
@@ -672,6 +949,18 @@ export function GroceryList({
     });
   };
 
+  const handleEditTag = async (tagId: string, name: string, color: string) => {
+    // Optimistically update the tag
+    setAllTags((prev) =>
+      prev.map((t) =>
+        t.id === tagId
+          ? { ...t, name, color, updatedAt: new Date() }
+          : t
+      )
+    );
+    await updateTag(tagId, name, color);
+  };
+
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newItemName.trim();
@@ -685,10 +974,13 @@ export function GroceryList({
     const tempItem: GroceryItemWithTags = {
       id: crypto.randomUUID(),
       householdId: "",
-      createdByUserId: "",
+      createdByUserId: _userId,
+      createdByUserDisplayName: null,
+      transferredFromCreatedByUserId: null,
       itemName: name,
       category: "Uncategorized",
       isPurchased: false,
+      purchasedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null,
@@ -707,6 +999,7 @@ export function GroceryList({
           },
         };
       }),
+      createdByUser: null, // Will be populated on server refresh
     };
 
     startTransition(async () => {
@@ -736,6 +1029,28 @@ export function GroceryList({
     });
   };
 
+  const handleStartEdit = (item: GroceryItemWithTags) => {
+    setEditingItemId(item.id);
+    setEditItemName(item.itemName);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setEditItemName("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItemId || !editItemName.trim()) return;
+    const newName = editItemName.trim();
+    const itemId = editingItemId;
+    setEditingItemId(null);
+    setEditItemName("");
+    startTransition(async () => {
+      addOptimistic({ type: "edit_name", id: itemId, name: newName });
+      await updateItem(itemId, newName);
+    });
+  };
+
   const handleCreateTagForItem = async (name: string, color: string) => {
     const newTag = await createTag(name, color);
     if (newTag) {
@@ -744,20 +1059,49 @@ export function GroceryList({
     return newTag;
   };
 
-  // Group items by category
-  const groupedItems = optimisticItems.reduce(
+  // Split items into active and history (purchased)
+  const activeItems = optimisticItems.filter((item) => !item.isPurchased);
+  const historyItems = optimisticItems.filter((item) => item.isPurchased);
+
+  // Apply tag filter to active items
+  const filteredActiveItems =
+    filterTagIds.length === 0
+      ? activeItems
+      : activeItems.filter((item) =>
+          filterTagIds.some((filterTagId) =>
+            item.groceryItemTags.some((itemTag) => itemTag.tagId === filterTagId)
+          )
+        );
+
+  // Get tags that are actually used by active items (for filter display)
+  const usedTagIds = new Set(
+    activeItems.flatMap((item) => item.groceryItemTags.map((it) => it.tagId))
+  );
+  const filterableTags = allTags.filter((tag) => usedTagIds.has(tag.id));
+
+  // Group history items by purchase date
+  const groupedHistoryItems = historyItems.reduce(
     (acc, item) => {
-      const category = item.category ?? "Uncategorized";
-      if (!acc[category]) {
-        acc[category] = [];
+      const purchaseDate = item.purchasedAt ? new Date(item.purchasedAt) : new Date();
+      const dateKey = formatHistoryDate(purchaseDate);
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
       }
-      acc[category].push(item);
+      acc[dateKey].push(item);
       return acc;
     },
     {} as Record<string, GroceryItemWithTags[]>
   );
 
-  const categories = Object.keys(groupedItems).sort();
+  // Sort history dates - Today first, then Yesterday, then by date descending
+  const historyDates = Object.keys(groupedHistoryItems).sort((a, b) => {
+    if (a === "Today") return -1;
+    if (b === "Today") return 1;
+    if (a === "Yesterday") return -1;
+    if (b === "Yesterday") return 1;
+    // Parse full dates and sort descending
+    return new Date(b).getTime() - new Date(a).getTime();
+  });
 
   return (
     <div className="space-y-6">
@@ -777,6 +1121,7 @@ export function GroceryList({
           onToggleTag={handleToggleTag}
           onCreateTag={handleCreateTag}
           onDeleteTag={handleDeleteTag}
+          onEditTag={handleEditTag}
         />
         <button
           type="submit"
@@ -787,7 +1132,7 @@ export function GroceryList({
         </button>
       </form>
 
-      {/* Selected tags preview */}
+      {/* Selected tags preview (for adding items) */}
       {selectedTagIds.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedTagIds.map((tagId) => {
@@ -810,83 +1155,204 @@ export function GroceryList({
         </div>
       )}
 
-      {/* Item List by Category */}
-      {categories.length === 0 ? (
-        <p className="text-center text-muted-foreground">
-          No items yet. Add something to your grocery list!
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {categories.map((category) => (
-            <div key={category}>
-              <h3 className="mb-2 text-sm font-semibold uppercase text-muted-foreground">
-                {category}
-              </h3>
-              <ul className="divide-y divide-border rounded-lg border bg-card">
-                {(groupedItems[category] ?? []).map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between px-4 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={item.isPurchased}
-                        onChange={() => handleToggleItem(item.id)}
-                        className="h-5 w-5 rounded border-input bg-background text-primary focus:ring-primary"
-                      />
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={
-                            item.isPurchased
-                              ? "text-muted-foreground line-through"
-                              : "text-foreground"
-                          }
-                        >
-                          {item.itemName}
-                        </span>
-                        {item.groceryItemTags.map((itemTag) => (
-                          <TagBadge
-                            key={itemTag.tagId}
-                            tag={itemTag.groceryTag}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <ItemTagSelector
-                        item={item}
-                        allTags={allTags}
-                        onUpdateTags={handleUpdateItemTags}
-                        onCreateTag={handleCreateTagForItem}
-                        onDeleteTag={handleDeleteTag}
-                      />
-                      <button
-                        onClick={() => handleDeleteItem(item.id)}
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label="Delete item"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+      {/* Tag Filter */}
+      {filterableTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          {filterableTags.map((tag) => {
+            const isActive = filterTagIds.includes(tag.id);
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() =>
+                  setFilterTagIds((prev) =>
+                    isActive
+                      ? prev.filter((id) => id !== tag.id)
+                      : [...prev, tag.id]
+                  )
+                }
+                className={`transition-opacity ${isActive ? "" : "opacity-50 hover:opacity-75"}`}
+              >
+                <TagBadge tag={tag} />
+              </button>
+            );
+          })}
+          {filterTagIds.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterTagIds([])}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
         </div>
       )}
+
+      {/* Active Item List */}
+      {activeItems.length === 0 ? (
+        <EmptyState message="No items yet. Add something to your grocery list!" />
+      ) : filteredActiveItems.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-4 text-center text-muted-foreground">
+          No items match the selected filter.
+        </div>
+      ) : (
+        <ul className="divide-y divide-border rounded-lg border bg-card">
+          {filteredActiveItems.map((item) => (
+            <li
+              key={item.id}
+              className="flex items-start justify-between px-4 py-3"
+            >
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <input
+                  type="checkbox"
+                  checked={item.isPurchased}
+                  onChange={() => handleToggleItem(item.id)}
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-input bg-background text-primary focus:ring-primary"
+                />
+                {editingItemId === item.id ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveEdit();
+                    }}
+                    className="flex flex-1 items-center gap-2 min-w-0"
+                  >
+                    <input
+                      type="text"
+                      value={editItemName}
+                      onChange={(e) => setEditItemName(e.target.value)}
+                      onBlur={handleSaveEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          handleCancelEdit();
+                        }
+                      }}
+                      autoFocus
+                      className="flex-1 min-w-0 rounded-md border border-input bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </form>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(item)}
+                      className="text-foreground text-left hover:underline focus:outline-none focus:underline truncate"
+                    >
+                      {item.itemName}
+                    </button>
+                    {item.groceryItemTags.map((itemTag) => (
+                      <TagBadge key={itemTag.tagId} tag={itemTag.groceryTag} />
+                    ))}
+                    {item.createdByUser && item.createdByUserId !== _userId && (
+                      <span className="text-xs text-muted-foreground">
+                        by {item.createdByUser.name ?? item.createdByUser.email.split("@")[0]}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                <ItemTagSelector
+                  item={item}
+                  allTags={allTags}
+                  onUpdateTags={handleUpdateItemTags}
+                  onCreateTag={handleCreateTagForItem}
+                  onDeleteTag={handleDeleteTag}
+                  onEditTag={handleEditTag}
+                />
+                <button
+                  onClick={() => handleDeleteItem(item.id)}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="Delete item"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Purchase History Section */}
+      {historyItems.length > 0 && (
+        <div className="border-t pt-4">
+          <button
+            type="button"
+            onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+            className="flex w-full items-center gap-2 text-muted-foreground hover:text-foreground"
+          >
+            {isHistoryExpanded ? (
+              <ChevronDownIcon className="h-5 w-5" />
+            ) : (
+              <ChevronRightIcon className="h-5 w-5" />
+            )}
+            <span className="text-sm font-semibold uppercase">
+              Purchase History ({historyItems.length} {historyItems.length === 1 ? "item" : "items"})
+            </span>
+          </button>
+
+          {isHistoryExpanded && (
+            <div className="mt-4 space-y-4">
+              {historyDates.map((dateLabel) => (
+                <div key={dateLabel}>
+                  <h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                    {dateLabel}
+                  </h4>
+                  <ul className="divide-y divide-border rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30">
+                    {(groupedHistoryItems[dateLabel] ?? []).map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-center justify-between px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={item.isPurchased}
+                            onChange={() => handleToggleItem(item.id)}
+                            className="h-5 w-5 rounded border-input bg-background text-primary focus:ring-primary"
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-muted-foreground line-through">
+                              {item.itemName}
+                            </span>
+                            {item.groceryItemTags.map((itemTag) => (
+                              <TagBadge
+                                key={itemTag.tagId}
+                                tag={itemTag.groceryTag}
+                              />
+                            ))}
+                            {item.createdByUser && item.createdByUserId !== _userId && (
+                              <span className="text-xs text-muted-foreground/70">
+                                by {item.createdByUser.name ?? item.createdByUser.email.split("@")[0]}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Offline indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

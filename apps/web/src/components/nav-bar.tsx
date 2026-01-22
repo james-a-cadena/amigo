@@ -3,12 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Wallet,
   ShoppingCart,
   CreditCard,
   Landmark,
+  CalendarDays,
   Settings,
   LogOut,
   ChevronDown,
@@ -26,6 +28,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/budget", label: "Budget", icon: Wallet },
   { href: "/groceries", label: "Groceries", icon: ShoppingCart },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/debts", label: "Debts", icon: CreditCard },
   { href: "/assets", label: "Assets", icon: Landmark },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -43,12 +46,19 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-primary">amigo</span>
+          <Link href="/dashboard" className="flex items-center">
+            <Image
+              src="/amigo-PWA-192x192.png"
+              alt="amigo"
+              width={40}
+              height={40}
+              className="h-10 w-10"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex md:items-center md:gap-6">
+          <div className="hidden md:flex md:items-center md:gap-1 lg:gap-4 flex-1 justify-center min-w-0">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
@@ -56,33 +66,33 @@ export function NavBar({ userName, userEmail }: NavBarProps) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors px-2 py-1 rounded-md whitespace-nowrap ${
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                  {link.label}
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden lg:inline">{link.label}</span>
                 </Link>
               );
             })}
           </div>
 
           {/* Theme Toggle & User Profile (Desktop) */}
-          <div className="hidden md:flex md:items-center md:gap-2">
+          <div className="hidden md:flex md:items-center md:gap-2 flex-shrink-0">
             <ModeToggle />
             <div className="relative">
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-foreground hover:bg-accent"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary flex-shrink-0">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
-                <span className="max-w-[150px] truncate">{displayName}</span>
+                <span className="max-w-[100px] truncate hidden lg:inline">{displayName}</span>
                 <ChevronDown
-                  className={`h-4 w-4 transition-transform ${
+                  className={`h-4 w-4 transition-transform flex-shrink-0 ${
                     isProfileOpen ? "rotate-180" : ""
                   }`}
                 />

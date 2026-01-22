@@ -2,15 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { db, eq, and } from "@amigo/db";
-import { debts } from "@amigo/db/schema";
+import { debts, households, type CurrencyCode } from "@amigo/db/schema";
 import { getSession } from "@/lib/session";
+import { getExchangeRateForRecord } from "@/lib/exchange-rates";
 import { z } from "zod";
+
+const currencySchema = z.enum(["CAD", "USD", "EUR", "GBP", "MXN"]).optional();
 
 const loanSchema = z.object({
   type: z.literal("LOAN"),
   name: z.string().min(1, "Name is required"),
   loanAmount: z.number().positive("Loan amount must be positive"),
   totalPaid: z.number().min(0, "Total paid cannot be negative"),
+  currency: currencySchema,
 });
 
 const creditCardSchema = z.object({
@@ -18,11 +22,19 @@ const creditCardSchema = z.object({
   name: z.string().min(1, "Name is required"),
   creditLimit: z.number().positive("Credit limit must be positive"),
   availableCredit: z.number().min(0, "Available credit cannot be negative"),
+  currency: currencySchema,
 });
 
 const addDebtSchema = z.discriminatedUnion("type", [loanSchema, creditCardSchema]);
 
 export type AddDebtInput = z.infer<typeof addDebtSchema>;
+
+async function getHomeCurrency(householdId: string): Promise<CurrencyCode> {
+  const household = await db.query.households.findFirst({
+    where: eq(households.id, householdId),
+  });
+  return household?.homeCurrency ?? "CAD";
+}
 
 export async function addDebt(input: AddDebtInput) {
   const session = await getSession();
@@ -31,6 +43,9 @@ export async function addDebt(input: AddDebtInput) {
   }
 
   const validated = addDebtSchema.parse(input);
+  const currency = validated.currency ?? "CAD";
+  const homeCurrency = await getHomeCurrency(session.householdId);
+  const exchangeRateToHome = await getExchangeRateForRecord(currency, homeCurrency);
 
   let balanceInitial: string;
   let balanceCurrent: string;
@@ -54,6 +69,8 @@ export async function addDebt(input: AddDebtInput) {
       type: validated.type,
       balanceInitial,
       balanceCurrent,
+      currency,
+      exchangeRateToHome,
     })
     .returning();
 
@@ -71,6 +88,9 @@ export async function updateDebt(id: string, input: UpdateDebtInput) {
   }
 
   const validated = addDebtSchema.parse(input);
+  const currency = validated.currency ?? "CAD";
+  const homeCurrency = await getHomeCurrency(session.householdId);
+  const exchangeRateToHome = await getExchangeRateForRecord(currency, homeCurrency);
 
   let balanceInitial: string;
   let balanceCurrent: string;
@@ -92,6 +112,8 @@ export async function updateDebt(id: string, input: UpdateDebtInput) {
       type: validated.type,
       balanceInitial,
       balanceCurrent,
+      currency,
+      exchangeRateToHome,
       updatedAt: new Date(),
     })
     .where(

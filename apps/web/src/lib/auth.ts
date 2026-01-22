@@ -11,6 +11,8 @@ function getEnvOrThrow(key: string): string {
   return value;
 }
 
+const isProduction = process.env.NODE_ENV === "production";
+
 async function discoverWithRetry(
   issuer: URL,
   clientId: string,
@@ -34,7 +36,23 @@ async function discoverWithRetry(
       return config;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`OIDC discovery attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+
+      // Log appropriately based on environment
+      if (isProduction) {
+        // In production, use structured logging without exposing internal details
+        console.error(
+          JSON.stringify({
+            level: "error",
+            context: "oidc-discovery",
+            attempt,
+            maxRetries,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } else {
+        // In development, show full error details for debugging
+        console.error(`OIDC discovery attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+      }
 
       if (attempt < maxRetries) {
         // Wait before retrying (exponential backoff: 2s, 4s, 8s, 16s)
@@ -76,7 +94,14 @@ export async function getOIDCConfig(): Promise<client.Configuration> {
 }
 
 export function getAppUrl(): string {
-  return process.env["APP_URL"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000";
+  if (process.env["APP_URL"]) return process.env["APP_URL"];
+  if (process.env["NEXT_PUBLIC_APP_URL"]) return process.env["NEXT_PUBLIC_APP_URL"];
+
+  // Default based on NODE_ENV
+  const isProduction = process.env["NODE_ENV"] === "production";
+  return isProduction
+    ? "https://amigo.cadenalabs.net"
+    : "http://localhost:3000";
 }
 
 export function getCallbackUrl(): string {

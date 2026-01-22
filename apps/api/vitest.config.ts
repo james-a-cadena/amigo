@@ -1,0 +1,27 @@
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/index.ts"],
+    },
+    // Setup file for mocks
+    setupFiles: ["./src/test/setup.ts"],
+    // Ensure external deps are properly handled
+    deps: {
+      interopDefault: true,
+    },
+    // Inline zod to prevent SSR module resolution issues
+    server: {
+      deps: {
+        inline: ["zod", "@hono/zod-validator"],
+      },
+    },
+  },
+});

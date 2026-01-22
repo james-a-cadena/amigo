@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import * as client from "openid-client";
 import { getOIDCConfig, getPostLoginRedirect, getAppUrl } from "@/lib/auth";
 import { createSession, getSessionCookieOptions } from "@/lib/session";
+import {
+  getOrphanedDataSummary,
+  createPendingRestoreToken,
+  PENDING_RESTORE_COOKIE,
+} from "@/lib/restore";
 import { db, eq } from "@amigo/db";
 import { users, households } from "@amigo/db/schema";
 
@@ -9,11 +14,7 @@ export async function GET(request: NextRequest) {
   const codeVerifier = request.cookies.get("oidc_code_verifier")?.value;
   const expectedState = request.cookies.get("oidc_state")?.value;
 
-  console.log("Callback received. codeVerifier:", !!codeVerifier, "expectedState:", !!expectedState);
-  console.log("Query params:", request.nextUrl.search);
-
   if (!codeVerifier || !expectedState) {
-    console.log("Missing OIDC cookies, redirecting to login");
     return NextResponse.redirect(
       new URL("/api/auth/login", getAppUrl())
     );
@@ -44,7 +45,6 @@ export async function GET(request: NextRequest) {
                  (userInfo.preferred_username as string | undefined);
 
     if (!sub || !email) {
-      console.error("Missing userinfo. Sub:", sub, "Email:", email);
       throw new Error("Missing required userinfo (sub, email)");
     }
 
@@ -54,26 +54,39 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      // Create a new household for the user
-      const [newHousehold] = await db
-        .insert(households)
-        .values({
-          name: name ? `${name}'s Household` : "My Household",
-        })
-        .returning();
+      // Single-household-per-instance model:
+      // Check if a household already exists - if so, join it
+      // If not, create the first (and only) household for this instance
+      let household = await db.query.households.findFirst();
+      let isFirstUser = false;
 
-      if (!newHousehold) {
-        throw new Error("Failed to create household");
+      if (!household) {
+        // First user - create the household for this instance
+        isFirstUser = true;
+        const [newHousehold] = await db
+          .insert(households)
+          .values({
+            name: "My Household",
+          })
+          .returning();
+
+        if (!newHousehold) {
+          throw new Error("Failed to create household");
+        }
+
+        household = newHousehold;
       }
 
-      // Create the user
+      // Create the user and assign to the household
+      // First user becomes owner, subsequent users become members
       const [newUser] = await db
         .insert(users)
         .values({
           authId: sub,
           email,
           name: name ?? null,
-          householdId: newHousehold.id,
+          householdId: household.id,
+          role: isFirstUser ? "owner" : "member",
         })
         .returning();
 
@@ -82,6 +95,40 @@ export async function GET(request: NextRequest) {
       }
 
       user = newUser;
+    } else if (user.deletedAt) {
+      // Soft-deleted user trying to log back in
+      // Redirect to restore page with pending restore token
+      const dataSummary = await getOrphanedDataSummary(user.id, user.householdId);
+
+      const token = await createPendingRestoreToken({
+        userId: user.id,
+        householdId: user.householdId,
+        authId: sub,
+        email,
+        name: name ?? null,
+        dataSummary,
+      });
+
+      const response = NextResponse.redirect(
+        new URL("/restore-account", getAppUrl())
+      );
+
+      // Set pending restore cookie
+      const cookieOptions = getSessionCookieOptions();
+      response.cookies.set(PENDING_RESTORE_COOKIE, token, {
+        httpOnly: cookieOptions.httpOnly,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        path: cookieOptions.path,
+        domain: cookieOptions.domain,
+        maxAge: 60 * 15, // 15 minutes
+      });
+
+      // Clear OIDC cookies
+      response.cookies.delete({ name: "oidc_code_verifier", path: "/", domain: cookieDomain });
+      response.cookies.delete({ name: "oidc_state", path: "/", domain: cookieDomain });
+
+      return response;
     } else {
       // Update user info if changed
       if (user.email !== email || user.name !== name) {
@@ -122,10 +169,8 @@ export async function GET(request: NextRequest) {
     response.cookies.delete({ name: "oidc_code_verifier", path: "/", domain: cookieDomain });
     response.cookies.delete({ name: "oidc_state", path: "/", domain: cookieDomain });
 
-    console.log("Login successful, redirecting to", getPostLoginRedirect());
     return response;
-  } catch (error) {
-    console.error("OIDC callback error:", error);
+  } catch {
     return NextResponse.redirect(
       new URL("/?error=auth_failed", getAppUrl())
     );

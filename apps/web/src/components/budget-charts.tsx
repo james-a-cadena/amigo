@@ -1,20 +1,20 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { useState, useEffect } from "react";
 import { DollarSign, TrendingDown } from "lucide-react";
-
-// Dynamically import Recharts components with SSR disabled to prevent hydration errors
-const PieChart = dynamic(() => import("recharts").then((mod) => mod.PieChart), { ssr: false });
-const Pie = dynamic(() => import("recharts").then((mod) => mod.Pie), { ssr: false });
-const Cell = dynamic(() => import("recharts").then((mod) => mod.Cell), { ssr: false });
-const ResponsiveContainer = dynamic(() => import("recharts").then((mod) => mod.ResponsiveContainer), { ssr: false });
-const Legend = dynamic(() => import("recharts").then((mod) => mod.Legend), { ssr: false });
-const Tooltip = dynamic(() => import("recharts").then((mod) => mod.Tooltip), { ssr: false });
-const BarChart = dynamic(() => import("recharts").then((mod) => mod.BarChart), { ssr: false });
-const Bar = dynamic(() => import("recharts").then((mod) => mod.Bar), { ssr: false });
-const XAxis = dynamic(() => import("recharts").then((mod) => mod.XAxis), { ssr: false });
-const YAxis = dynamic(() => import("recharts").then((mod) => mod.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import("recharts").then((mod) => mod.CartesianGrid), { ssr: false });
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 
 interface CategoryData {
   category: string;
@@ -46,6 +46,22 @@ const COLORS = [
   "#FF6B6B",
 ];
 
+// Tooltip styles that respect the current theme
+const tooltipContentStyle = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "var(--radius)",
+};
+
+const tooltipLabelStyle = {
+  color: "hsl(var(--card-foreground))",
+};
+
+const tooltipCursorStyle = {
+  fill: "hsl(var(--muted))",
+  opacity: 0.3,
+};
+
 function formatCurrency(value: number | undefined): string {
   if (value === undefined) return "";
   return new Intl.NumberFormat("en-US", {
@@ -59,8 +75,18 @@ export function BudgetCharts({
   categoryData,
   monthlyComparison,
 }: BudgetChartsProps) {
+  const [isReady, setIsReady] = useState(false);
   const hasData = categoryData.length > 0;
   const hasComparisonData = monthlyComparison && monthlyComparison.length > 0;
+
+  // Wait for client-side hydration before rendering charts
+  useEffect(() => {
+    // Use requestAnimationFrame to avoid synchronous setState warning
+    const rafId = requestAnimationFrame(() => {
+      setIsReady(true);
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   // Get current and last month names for the comparison chart
   const now = new Date();
@@ -68,8 +94,9 @@ export function BudgetCharts({
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
   const lastMonthName = lastMonth.toLocaleDateString("en-US", { month: "short" });
 
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* Total Spending Card */}
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-3">
@@ -87,98 +114,120 @@ export function BudgetCharts({
       {hasData ? (
         <>
           {/* Pie Chart */}
-          <div className="rounded-lg border bg-card p-6">
+          <div className="rounded-lg border bg-card p-6 overflow-hidden">
             <h3 className="mb-4 text-lg font-semibold">Spending by Category</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="amount"
-                    nameKey="category"
-                    label={(props: { name?: string; percent?: number }) => {
-                      const name = props.name ?? "";
-                      const percent = props.percent ?? 0;
-                      return `${name} (${(percent * 100).toFixed(0)}%)`;
-                    }}
-                  >
-                    {categoryData.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-72 overflow-hidden">
+              {isReady && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="35%"
+                      labelLine={false}
+                      outerRadius={70}
+                      dataKey="amount"
+                      nameKey="category"
+                    >
+                      {categoryData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={tooltipContentStyle}
+                        labelStyle={tooltipLabelStyle}
+                      formatter={(value, _name, props) => [
+                        formatCurrency(value as number),
+                        props.payload?.category
+                      ]}
+                    />
+                    <Legend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
           {/* Month-over-Month Comparison Bar Chart */}
           {hasComparisonData && (
-            <div className="rounded-lg border bg-card p-6">
+            <div className="rounded-lg border bg-card p-6 overflow-hidden">
               <h3 className="mb-4 text-lg font-semibold">
                 {thisMonthName} vs {lastMonthName}
               </h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyComparison} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(v) => `$${v}`} />
-                    <YAxis
-                      type="category"
-                      dataKey="category"
-                      width={100}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip
-                      formatter={(value) => formatCurrency(value as number)}
-                    />
-                    <Legend />
-                    <Bar
-                      dataKey="thisMonth"
-                      name={thisMonthName}
-                      fill="#0088FE"
-                    />
-                    <Bar
-                      dataKey="lastMonth"
-                      name={lastMonthName}
-                      fill="#82CA9D"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="h-64 overflow-hidden">
+                {isReady && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyComparison} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        type="number"
+                        tickFormatter={(v) => `$${v}`}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="category"
+                        width={70}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip
+                        contentStyle={tooltipContentStyle}
+                        labelStyle={tooltipLabelStyle}
+                        cursor={tooltipCursorStyle}
+                        formatter={(value) => formatCurrency(value as number)}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "12px" }} />
+                      <Bar
+                        dataKey="thisMonth"
+                        name={thisMonthName}
+                        fill="#0088FE"
+                      />
+                      <Bar
+                        dataKey="lastMonth"
+                        name={lastMonthName}
+                        fill="#82CA9D"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           )}
 
           {/* Fallback: Category Breakdown (when no comparison data) */}
           {!hasComparisonData && (
-            <div className="rounded-lg border bg-card p-6">
+            <div className="rounded-lg border bg-card p-6 overflow-hidden">
               <h3 className="mb-4 text-lg font-semibold">Category Breakdown</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(v) => `$${v}`} />
-                    <YAxis
-                      type="category"
-                      dataKey="category"
-                      width={100}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip
-                      formatter={(value) => formatCurrency(value as number)}
-                    />
-                    <Bar dataKey="amount" fill="#0088FE" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="h-64 overflow-hidden">
+                {isReady && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={categoryData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        type="number"
+                        tickFormatter={(v) => `$${v}`}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="category"
+                        width={70}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip
+                        contentStyle={tooltipContentStyle}
+                        labelStyle={tooltipLabelStyle}
+                        cursor={tooltipCursorStyle}
+                        formatter={(value) => formatCurrency(value as number)}
+                      />
+                      <Bar dataKey="amount" fill="#0088FE" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           )}

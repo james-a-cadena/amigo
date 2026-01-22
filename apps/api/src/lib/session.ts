@@ -1,4 +1,5 @@
 import { redis } from "./redis";
+import type { UserRole } from "@amigo/db";
 
 const SESSION_COOKIE = "amigo_session";
 
@@ -8,6 +9,11 @@ export interface Session {
   email: string;
   name: string | null;
   authId: string;
+  role: UserRole;
+}
+
+export interface SessionWithId extends Session {
+  sessionId: string;
 }
 
 function getSessionKey(sessionId: string): string {
@@ -16,7 +22,7 @@ function getSessionKey(sessionId: string): string {
 
 export async function getSessionFromCookie(
   cookieHeader: string | null
-): Promise<Session | null> {
+): Promise<SessionWithId | null> {
   if (!cookieHeader) {
     return null;
   }
@@ -39,5 +45,6 @@ export async function getSessionFromCookie(
     return null;
   }
 
-  return JSON.parse(data) as Session;
+  const session = JSON.parse(data) as Session;
+  return { ...session, sessionId };
 }

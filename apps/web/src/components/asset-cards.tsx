@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { deleteAsset } from "@/actions/assets";
 import { EditAssetDialog } from "@/components/edit-asset-dialog";
 import { useConfirm } from "@/components/confirm-provider";
+import { EmptyState } from "@/components/empty-state";
+import { formatCurrency, calculateHomeAmount } from "@/lib/currency";
 import type { Asset } from "@amigo/db";
+import type { CurrencyCode } from "@amigo/db/schema";
 
 interface AssetCardsProps {
   assets: Asset[];
@@ -45,6 +48,11 @@ function AssetCard({ asset }: { asset: Asset }) {
 
   const balance = parseFloat(asset.balance);
   const config = typeConfig[asset.type] || typeConfig.BANK;
+  const currency = (asset.currency ?? "CAD") as CurrencyCode;
+  const isForeignCurrency = currency !== "CAD" && asset.exchangeRateToHome;
+  const homeAmount = isForeignCurrency
+    ? calculateHomeAmount(balance, asset.exchangeRateToHome)
+    : null;
 
   const handleDelete = async () => {
     const confirmed = await confirm({
@@ -121,9 +129,16 @@ function AssetCard({ asset }: { asset: Asset }) {
 
         <div className="flex items-baseline justify-between">
           <span className="text-sm text-muted-foreground">Balance</span>
-          <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-            ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </span>
+          <div className="text-right">
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+              {formatCurrency(balance, currency)}
+            </span>
+            {isForeignCurrency && homeAmount !== null && (
+              <p className="text-sm text-muted-foreground">
+                ~{formatCurrency(homeAmount, "CAD")}
+              </p>
+            )}
+          </div>
         </div>
       </div>
       <EditAssetDialog
@@ -152,11 +167,7 @@ export function AssetCards({ assets }: AssetCardsProps) {
 
   if (assets.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center">
-        <p className="text-muted-foreground">
-          No assets yet. Add your first asset to start tracking your net worth.
-        </p>
-      </div>
+      <EmptyState message="No assets yet. Add your first asset to start tracking your net worth." />
     );
   }
 

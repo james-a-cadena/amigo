@@ -12,9 +12,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init-dev-db.sh:/docker-entrypoint-initdb.d/01-init-dev-db.sh:ro
+      # Authentik DB init script - only needed if using bundled Authentik
+      # Safe to leave mounted; it just creates an unused DB if Authentik isn't running
       - ./docker/postgres/init-authentik.sh:/docker-entrypoint-initdb.d/02-init-authentik.sh:ro
-    ports:
-      - "5432:5432"
+    # No ports exposed - only accessible via Docker network
     networks:
       - amigo-network
     healthcheck:
@@ -30,8 +31,7 @@ services:
     restart: unless-stopped
     volumes:
       - valkey_data:/data
-    ports:
-      - "6379:6379"
+    # No ports exposed - only accessible via Docker network
     networks:
       - amigo-network
     healthcheck:
@@ -41,10 +41,15 @@ services:
       retries: 5
 
   # ============================================
-  # AUTHENTIK (Identity Provider)
+  # AUTHENTIK (Identity Provider) - OPTIONAL
   # ============================================
+  # Only starts with: docker compose --profile authentik up
+  # Skip these if you have an existing Authentik/OIDC provider.
+  # Just configure AUTHENTIK_ISSUER, AUTHENTIK_CLIENT_ID, and
+  # AUTHENTIK_CLIENT_SECRET in your .env to point to your provider.
 
   authentik-server:
+    profiles: [authentik]
     image: ghcr.io/goauthentik/server:2024.10
     container_name: amigo-authentik-server
     restart: unless-stopped
@@ -57,7 +62,7 @@ services:
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD:-authentik}
       AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:-}
-      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-admin@cadenalabs.net}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-admin@example.com}
     volumes:
       - ./authentik/media:/media
       - ./authentik/custom-templates:/templates
@@ -70,6 +75,7 @@ services:
         condition: service_healthy
 
   authentik-worker:
+    profiles: [authentik]
     image: ghcr.io/goauthentik/server:2024.10
     container_name: amigo-authentik-worker
     restart: unless-stopped
@@ -83,7 +89,7 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD:-authentik}
       # Bootstrap vars must be on worker - it runs the blueprints that create akadmin
       AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:-}
-      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-admin@cadenalabs.net}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-admin@example.com}
     volumes:
       - ./authentik/media:/media
       - ./authentik/custom-templates:/templates
@@ -116,10 +122,9 @@ services:
     depends_on:
       - web-prod
       - web-dev
-      - authentik-server
 
   # ============================================
-  # PRODUCTION STACK (amigo.cadenalabs.net)
+  # PRODUCTION STACK
   # ============================================
 
   web-prod:
@@ -129,15 +134,19 @@ services:
       target: runner
     container_name: amigo-web-prod
     restart: unless-stopped
-    network_mode: host
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
-      VALKEY_URL: redis://localhost:6379
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      VALKEY_URL: redis://valkey:6379
       AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
       AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
-      APP_URL: https://amigo.cadenalabs.net
+      APP_URL: ${APP_URL}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+    networks:
+      - amigo-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -163,9 +172,10 @@ services:
         condition: service_healthy
 
   # ============================================
-  # DEVELOPMENT STACK (dev-amigo.cadenalabs.net)
+  # DEVELOPMENT STACK
   # ============================================
 
+  # Production-like dev build (no hot reload, for testing prod builds)
   web-dev:
     build:
       context: .
@@ -173,16 +183,53 @@ services:
       target: runner
     container_name: amigo-web-dev
     restart: unless-stopped
-    network_mode: host
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}_dev
-      VALKEY_URL: redis://localhost:6379
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}_dev
+      VALKEY_URL: redis://valkey:6379
       AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
       AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
-      APP_URL: https://dev-amigo.cadenalabs.net
+      APP_URL: ${DEV_APP_URL:-${APP_URL}}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+    networks:
+      - amigo-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+
+  # Hot-reload dev server (for active development)
+  web-dev-hot:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile.dev
+    container_name: amigo-web-dev-hot
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      TZ: ${TZ:-America/Toronto}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}_dev
+      VALKEY_URL: redis://valkey:6379
+      AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
+      AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
+      AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
+      APP_URL: ${DEV_APP_URL:-${APP_URL}}
+      WATCHPACK_POLLING: "true"
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+    networks:
+      - amigo-network
+    volumes:
+      # Mount only the source directory for hot reload
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
     depends_on:
       postgres:
         condition: service_healthy

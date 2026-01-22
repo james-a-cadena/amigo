@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Loader2,
   Plus,
   Pencil,
   Trash2,
@@ -19,22 +18,29 @@ import {
   deleteRecurringRule,
 } from "@/actions/recurring";
 import { useConfirm } from "@/components/confirm-provider";
-import type { RecurringTransaction } from "@amigo/db/schema";
+import { EmptyState } from "@/components/empty-state";
+import { Loading } from "@/components/loading";
+import type { RecurringTransaction, CurrencyCode } from "@amigo/db/schema";
 import {
   AddRecurringDialog,
   EditRecurringDialog,
 } from "@/components/recurring-dialogs";
-
-function formatCurrency(value: string | number): string {
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(num);
-}
+import { formatCurrency } from "@/lib/currency";
+import { TransferredFromIndicator } from "@/components/transferred-from-indicator";
 
 function formatDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === "string") {
+    // Extract just the date portion and parse as local time
+    // This handles both "2026-01-01" and "2026-02-01T00:00:00.000Z" formats
+    // Without timezone shift issues
+    const dateOnly = date.split("T")[0];
+    d = new Date(dateOnly + "T00:00:00");
+  } else {
+    // For Date objects, use UTC components to avoid timezone shift
+    const dateOnly = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+    d = new Date(dateOnly + "T00:00:00");
+  }
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -51,15 +57,38 @@ const FREQ_LABELS: Record<Frequency, { singular: string; plural: string }> = {
   YEARLY: { singular: "year", plural: "years" },
 };
 
-function getFrequencyLabel(frequency: Frequency, interval: number): string {
+function getOrdinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
+    default: return "th";
+  }
+}
+
+function getFrequencyLabel(frequency: Frequency, interval: number, dayOfMonth?: number | null): string {
   const label = FREQ_LABELS[frequency];
+
+  if (frequency === "MONTHLY" && dayOfMonth) {
+    const suffix = getOrdinalSuffix(dayOfMonth);
+    if (interval === 1) {
+      return `${dayOfMonth}${suffix} of every month`;
+    }
+    return `${dayOfMonth}${suffix} every ${interval} months`;
+  }
+
   if (interval === 1) {
     return `Every ${label.singular}`;
   }
   return `Every ${interval} ${label.plural}`;
 }
 
-export function RecurringList() {
+interface RecurringListProps {
+  currentUserId: string;
+}
+
+export function RecurringList({ currentUserId }: RecurringListProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingRule, setEditingRule] = useState<RecurringTransaction | null>(
     null
@@ -97,11 +126,7 @@ export function RecurringList() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (isError) {
@@ -125,16 +150,14 @@ export function RecurringList() {
 
       {/* Rules List */}
       {!rules || rules.length === 0 ? (
-        <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
-          No recurring rules yet. Add one to automate your transactions.
-        </div>
+        <EmptyState message="No recurring rules yet. Add one to automate your transactions." />
       ) : (
         <div className="space-y-3">
           {rules.map((rule) => (
             <div
               key={rule.id}
-              className={`rounded-lg border bg-card p-4 ${
-                !rule.active ? "opacity-60" : ""
+              className={`rounded-lg border bg-card p-4 transition-colors ${
+                !rule.active ? "border-dashed border-muted-foreground/30 bg-muted/30" : ""
               }`}
             >
               <div className="flex items-start justify-between gap-4">
@@ -162,12 +185,24 @@ export function RecurringList() {
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
                         <Repeat className="h-3 w-3" />
-                        {getFrequencyLabel(rule.frequency, rule.interval)}
+                        {getFrequencyLabel(rule.frequency, rule.interval, rule.dayOfMonth)}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
                         <Calendar className="h-3 w-3" />
-                        Next: {formatDate(rule.nextRunDate)}
+                        {!rule.active && rule.endDate ? (
+                          `Ended: ${formatDate(rule.endDate)}`
+                        ) : (
+                          `Next: ${formatDate(rule.nextRunDate)}`
+                        )}
                       </span>
+                      {rule.transferredFromUserId && rule.userDisplayName && (
+                        <TransferredFromIndicator
+                          originalOwnerName={rule.userDisplayName}
+                          recordId={rule.id}
+                          tableName="recurring_transactions"
+                          show={rule.userId === currentUserId}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -181,16 +216,21 @@ export function RecurringList() {
                     }`}
                   >
                     {rule.type === "income" ? "+" : "-"}
-                    {formatCurrency(rule.amount)}
+                    {formatCurrency(parseFloat(rule.amount), rule.currency as CurrencyCode)}
                   </span>
 
                   <div className="flex items-center gap-2">
-                    <Switch
-                      checked={rule.active}
-                      onCheckedChange={() => handleToggle(rule.id)}
-                      disabled={isPending}
-                      aria-label={rule.active ? "Pause rule" : "Resume rule"}
-                    />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className={`text-xs ${rule.active ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                        {rule.active ? "Active" : "Paused"}
+                      </span>
+                      <Switch
+                        checked={rule.active}
+                        onCheckedChange={() => handleToggle(rule.id)}
+                        disabled={isPending}
+                        aria-label={rule.active ? "Pause rule" : "Resume rule"}
+                      />
+                    </label>
                     <button
                       onClick={() => setEditingRule(rule)}
                       className="text-muted-foreground hover:text-foreground"

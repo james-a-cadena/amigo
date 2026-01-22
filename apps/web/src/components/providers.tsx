@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { ConfirmProvider } from "@/components/confirm-provider";
+import { PushPromptProvider } from "@/components/push-prompt-provider";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -22,7 +23,9 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfirmProvider>{children}</ConfirmProvider>
+      <ConfirmProvider>
+        <PushPromptProvider>{children}</PushPromptProvider>
+      </ConfirmProvider>
     </QueryClientProvider>
   );
 }
