@@ -54,6 +54,8 @@ jobs:
       - name: Run tests with coverage
         # Use Node.js to run vitest - coverage-v8 requires node:inspector which Bun doesn't support
         run: cd apps/api && /home/linuxbrew/.linuxbrew/bin/npx vitest run --coverage
+        env:
+          PATH: /home/linuxbrew/.linuxbrew/bin:${{ env.PATH }}
 
   build:
     name: Build
