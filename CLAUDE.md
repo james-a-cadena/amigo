@@ -182,9 +182,11 @@ const results = await withRLS(session.householdId, async () => {
 
 ## Domain
 
-* **Prod:** `amigo.cadenalabs.net`
-* **Dev:** `dev-amigo.cadenalabs.net`
-* **Cookie scope:** `.cadenalabs.net`
+* **Prod:** `amigo.yourdomain.com`
+* **Dev:** `dev-amigo.yourdomain.com`
+* **Cookie scope:** `.yourdomain.com`
+
+Configure your domain via `APP_DOMAIN` environment variable.
 
 ## Server Actions
 

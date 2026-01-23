@@ -21,7 +21,7 @@ make dev-up       # Start dev containers
 make dev-logs     # Tail dev logs
 ```
 
-Visit https://dev-amigo.cadenalabs.net
+Visit `https://dev-amigo.yourdomain.com` (configure your domain in `.env`)
 
 ## Production
 
@@ -46,7 +46,7 @@ make prod-logs    # Tail prod logs
 
 - Docker & Docker Compose
 - Cloudflare API token (for DNS-01 SSL via Caddy)
-- Domain configured: `*.cadenalabs.net`
+- Domain configured (e.g., `*.yourdomain.com`)
 
 ### First-Time Setup
 
@@ -64,6 +64,7 @@ make prod-logs    # Tail prod logs
    AUTHENTIK_SECRET_KEY=$(openssl rand -base64 32)
    AUTHENTIK_BOOTSTRAP_PASSWORD=<initial-admin-password>
    CLOUDFLARE_API_TOKEN=<your-token>
+   APP_DOMAIN=yourdomain.com
    ```
 
 2. **Create Directories**
@@ -80,7 +81,7 @@ make prod-logs    # Tail prod logs
 
 4. **Initialize Authentik**
 
-   Navigate to `https://auth.cadenalabs.net/if/flow/initial-setup/` and create admin account.
+   Navigate to `https://auth.yourdomain.com/if/flow/initial-setup/` and create admin account.
 
 5. **Configure OIDC Application**
 
@@ -90,13 +91,13 @@ make prod-logs    # Tail prod logs
    - **Provider:** OAuth2/OpenID (Confidential)
    - **Redirect URIs:**
      ```
-     https://amigo.cadenalabs.net/api/auth/callback
-     https://dev-amigo.cadenalabs.net/api/auth/callback
+     https://amigo.yourdomain.com/api/auth/callback
+     https://dev-amigo.yourdomain.com/api/auth/callback
      ```
 
    Update `.env`:
    ```bash
-   AUTHENTIK_ISSUER=https://auth.cadenalabs.net/application/o/amigo/
+   AUTHENTIK_ISSUER=https://auth.yourdomain.com/application/o/amigo/
    AUTHENTIK_CLIENT_ID=amigo
    AUTHENTIK_CLIENT_SECRET=<generated-secret>
    ```
@@ -105,9 +106,9 @@ make prod-logs    # Tail prod logs
 
 | Environment | URL |
 |-------------|-----|
-| Production | `https://amigo.cadenalabs.net` |
-| Development | `https://dev-amigo.cadenalabs.net` |
-| Auth | `https://auth.cadenalabs.net` |
+| Production | `https://amigo.yourdomain.com` |
+| Development | `https://dev-amigo.yourdomain.com` |
+| Auth | `https://auth.yourdomain.com` |
 
 ## Security Checklist
 
@@ -123,7 +124,7 @@ make prod-logs    # Tail prod logs
 ### Verify Before Deploy
 
 - CORS not set to wildcard in production
-- All `*.cadenalabs.net` subdomains are trusted (shared session cookies)
+- All subdomains of your configured domain are trusted (shared session cookies)
 - VAPID keys configured if push notifications needed
 
 ## Troubleshooting
@@ -133,7 +134,7 @@ make prod-logs    # Tail prod logs
 - Verify issuer URL ends with `/`
 
 **Login Redirect Loop**
-- Clear browser cookies for `cadenalabs.net`
+- Clear browser cookies for your domain
 - Verify redirect URIs match exactly in Authentik
 
 **Database Connection Issues**
