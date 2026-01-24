@@ -27,6 +27,11 @@ All notable changes to this project will be documented in this file.
   - Remove Authentik-related make targets (authentik-up, authentik-down, etc.)
   - Simplify to core amigo stack management only
 
+### Fixed
+
+- Unused `args` parameter in `apps/api/src/lib/redis.ts` (lint error)
+- ESLint now ignores bundled `sw.js` service worker file
+
 ### Documentation
 
 - Update ARCHITECTURE.md with standalone service architecture
