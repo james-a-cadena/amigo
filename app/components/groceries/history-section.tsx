@@ -29,7 +29,7 @@ export function HistorySection({
     const groupMap = new Map<string, DateGroup>();
 
     for (const item of items) {
-      const purchasedAt = item.purchasedAt ?? new Date();
+      const purchasedAt = item.purchasedAt ? new Date(item.purchasedAt) : new Date();
       const label = formatHistoryDate(purchasedAt);
       const dateOnly = new Date(
         purchasedAt.getFullYear(),

@@ -2,7 +2,6 @@ import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import {
-  Wallet,
   TrendingUp,
   TrendingDown,
   ShoppingCart,

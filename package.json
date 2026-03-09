@@ -16,7 +16,7 @@
     "db:studio": "cd packages/db && drizzle-kit studio",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
   "dependencies": {

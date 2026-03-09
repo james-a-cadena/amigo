@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { formatCents } from "@/app/lib/currency";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { EditAssetDialog } from "@/app/components/edit-asset-dialog";
 import type { CurrencyCode } from "@amigo/db";
 
@@ -29,7 +29,7 @@ interface AssetCardsProps {
   session: { userId: string };
 }
 
-export function AssetCards({ assets, session }: AssetCardsProps) {
+export function AssetCards({ assets, session: _session }: AssetCardsProps) {
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
 
   const grouped = assets.reduce<Record<string, Asset[]>>((acc, asset) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRevalidator } from "react-router";
-import { Loader2, Plus, Trash2, ArrowDown, ArrowUp, Pencil, Target, ChevronDown } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowDown, ArrowUp, Pencil, ChevronDown } from "lucide-react";
 import { EmptyState } from "@/app/components/empty-state";
 import { BudgetSelect } from "@/app/components/budget-select";
 import { CurrencySelect } from "@/app/components/currency-select";
@@ -37,7 +37,7 @@ interface TransactionListProps {
 
 export function TransactionList({
   initialTransactions,
-  currentUserId,
+  currentUserId: _currentUserId,
 }: TransactionListProps) {
   const revalidator = useRevalidator();
   const [allTransactions, setAllTransactions] =

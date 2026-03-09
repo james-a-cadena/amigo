@@ -240,7 +240,7 @@ function BudgetFormDialog({
   );
 }
 
-export function BudgetList({ budgets, session }: BudgetListProps) {
+export function BudgetList({ budgets, session: _session }: BudgetListProps) {
   const revalidator = useRevalidator();
   const [showAdd, setShowAdd] = useState(false);
   const [editingBudget, setEditingBudget] = useState<BudgetWithSpending | null>(null);

@@ -26,7 +26,7 @@ interface DebtCardsProps {
   session: { userId: string };
 }
 
-export function DebtCards({ debts, session }: DebtCardsProps) {
+export function DebtCards({ debts, session: _session }: DebtCardsProps) {
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
 
   const loans = debts.filter((d) => d.type === "LOAN");

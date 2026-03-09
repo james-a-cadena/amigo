@@ -7,7 +7,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/app/components/ui/dialog";
 import { CurrencySelect } from "@/app/components/currency-select";
 import { BudgetSelect } from "@/app/components/budget-select";

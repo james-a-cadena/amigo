@@ -104,7 +104,7 @@ export function Calendar({ initialEvents, initialMonth }: CalendarProps) {
 
       setLoading(true);
       try {
-        const res = await fetch(`/api/calendar?year=${y}&month=${m}`);
+        const res = await fetch(`/api/calendar?year=${y}&month=${m + 1}`);
         if (res.ok) {
           const data = (await res.json()) as { events?: CalendarEvent[] };
           setEventsCache((prev) => ({ ...prev, [key]: data.events ?? [] }));

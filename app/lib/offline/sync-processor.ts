@@ -4,19 +4,10 @@ import {
   removeMutation,
   markMutationFailed,
   setLastSyncTimestamp,
-  type SyncOperation,
 } from "./sync-queue";
 
 const MAX_RETRIES = 5;
 const SYNC_BATCH_SIZE = 10;
-
-interface SyncMutation {
-  id: string;
-  operation: SyncOperation;
-  entityType: string;
-  entityId: string;
-  payload: Record<string, unknown>;
-}
 
 interface BatchSyncResponse {
   processed: number;

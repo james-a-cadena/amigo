@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { HonoEnv } from "../env";
-import { getDb, groceryTags, scopeToHousehold, eq, and, sql } from "@amigo/db";
-import { enforceRateLimit, RATE_LIMIT_PRESETS } from "../middleware/rate-limit";
+import { getDb, groceryTags, eq, and, sql } from "@amigo/db";
 import { broadcastToHousehold } from "../lib/realtime";
 import { ActionError } from "../lib/errors";
 

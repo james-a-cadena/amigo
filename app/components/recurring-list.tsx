@@ -106,7 +106,7 @@ function formatDate(iso: string): string {
   });
 }
 
-export function RecurringList({ rules, session }: RecurringListProps) {
+export function RecurringList({ rules, session: _session }: RecurringListProps) {
   const revalidator = useRevalidator();
   const [toggling, setToggling] = useState<string | null>(null);
   const [deletingRule, setDeletingRule] = useState<RecurringRule | null>(null);

@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { requireSession, getEnv } from "@/app/lib/session.server";
-import { getDb, transactions, budgets, scopeToHousehold, eq, and, or, isNull, sql, desc } from "@amigo/db";
+import { getDb, transactions, scopeToHousehold, eq, and, or, isNull, sql, desc } from "@amigo/db";
 import { TransactionList } from "@/app/components/transaction-list";
 
 export async function loader({ context }: LoaderFunctionArgs) {

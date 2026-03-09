@@ -5,7 +5,6 @@ import { getDb, groceryItems, groceryItemTags, scopeToHousehold, eq, and, isNull
 import { enforceRateLimit, checkRateLimit, RATE_LIMIT_PRESETS } from "../middleware/rate-limit";
 import { broadcastToHousehold } from "../lib/realtime";
 import { ActionError, logServerError } from "../lib/errors";
-import { withAudit } from "../lib/audit";
 
 const DEFAULT_GROCERY_CATEGORY = "General";
 

@@ -16,7 +16,6 @@ import { ActionError } from "../lib/errors";
 import { logSecurityEvent, logServerError } from "../lib/errors";
 import { enforceRateLimit, RATE_LIMIT_PRESETS } from "../middleware/rate-limit";
 
-const RESTORE_TOKEN_TTL = 900; // 15 minutes
 const RESTORE_TOKEN_PREFIX = "restore:";
 
 export const restoreRoute = new Hono<HonoEnv>()

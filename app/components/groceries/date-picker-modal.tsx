@@ -12,7 +12,7 @@ export function DatePickerModal({ item, onConfirm, onCancel }: DatePickerModalPr
   const todayStr = today.toISOString().split("T")[0];
 
   const initialDate = item.purchasedAt
-    ? item.purchasedAt.toISOString().split("T")[0]
+    ? new Date(item.purchasedAt).toISOString().split("T")[0]
     : todayStr;
 
   const [selectedDate, setSelectedDate] = useState(initialDate);

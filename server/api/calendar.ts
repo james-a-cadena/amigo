@@ -123,7 +123,7 @@ export const calendarRoute = new Hono<HonoEnv>().get("/", async (c) => {
   }
 
   const year = parseInt(yearParam, 10);
-  const month = parseInt(monthParam, 10); // 0-indexed
+  const month = parseInt(monthParam, 10) - 1; // Convert 1-indexed API param to 0-indexed for JS Date
 
   // Calculate month boundaries as ISO date strings
   const monthStart = new Date(Date.UTC(year, month, 1));
