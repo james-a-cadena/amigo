@@ -42,17 +42,18 @@ function applyOptimisticAction(
         item.id === action.id
           ? {
               ...item,
-              groceryItemTags: action.tagIds.map((tagId) => {
+              groceryItemTags: action.tagIds.flatMap((tagId) => {
                 const existing = item.groceryItemTags.find(
                   (git) => git.groceryTag.id === tagId
                 );
-                if (existing) return existing;
+                if (existing) return [existing];
                 const tag = action.allTags.find((t) => t.id === tagId);
-                return {
+                if (!tag) return [];
+                return [{
                   itemId: item.id,
                   tagId,
-                  groceryTag: tag!,
-                } as GroceryItemWithTags["groceryItemTags"][number];
+                  groceryTag: tag,
+                } as GroceryItemWithTags["groceryItemTags"][number]];
               }),
             }
           : item

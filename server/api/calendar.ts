@@ -24,6 +24,7 @@ export interface CalendarEvent {
   color: "green" | "red" | "orange" | "blue";
   metadata?: {
     amount?: number; // cents
+    currency?: string;
     transactionType?: "income" | "expense";
     frequency?: string;
     itemCount?: number;
@@ -35,6 +36,7 @@ interface RecurringRule {
   category: string;
   description: string | null;
   amount: number;
+  currency: string;
   type: "income" | "expense";
   frequency: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   interval: number;
@@ -100,6 +102,7 @@ function getRecurringOccurrences(
         color: rule.type === "income" ? "green" : "red",
         metadata: {
           amount: rule.amount,
+          currency: rule.currency,
           transactionType: rule.type,
           frequency: rule.frequency,
         },
@@ -219,6 +222,7 @@ export const calendarRoute = new Hono<HonoEnv>().get("/", async (c) => {
       color: tx.type === "income" ? "green" : "blue",
       metadata: {
         amount: tx.amount,
+        currency: tx.currency,
         transactionType: tx.type as "income" | "expense",
       },
     });

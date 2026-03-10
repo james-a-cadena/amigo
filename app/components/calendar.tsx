@@ -27,6 +27,7 @@ export interface CalendarEvent {
   color: "green" | "red" | "orange" | "blue";
   metadata?: {
     amount?: number; // cents
+    currency?: string;
     transactionType?: "income" | "expense";
     frequency?: string;
     itemCount?: number;
@@ -281,7 +282,7 @@ export function Calendar({ initialEvents, initialMonth }: CalendarProps) {
                           )}
                         >
                           {ev.metadata?.amount != null
-                            ? `${ev.metadata.transactionType === "income" ? "+" : "-"}${formatCents(ev.metadata.amount, "CAD" as CurrencyCode, { compact: true })}`
+                            ? `${ev.metadata.transactionType === "income" ? "+" : "-"}${formatCents(ev.metadata.amount, (ev.metadata.currency ?? "CAD") as CurrencyCode, { compact: true })}`
                             : ev.title}
                         </div>
                       ))}
@@ -405,7 +406,7 @@ export function Calendar({ initialEvents, initialMonth }: CalendarProps) {
                           : "-"}
                         {formatCents(
                           event.metadata.amount,
-                          "CAD" as CurrencyCode
+                          (event.metadata.currency ?? "CAD") as CurrencyCode
                         )}
                       </span>
                     )}
