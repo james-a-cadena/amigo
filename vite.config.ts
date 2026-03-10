@@ -8,6 +8,14 @@ import { VitePWA } from "vite-plugin-pwa";
 import { getLoadContext } from "./load-context";
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.message.includes("Can't resolve original location of error")) return;
+        defaultHandler(warning);
+      },
+    },
+  },
   plugins: [
     tailwindcss(),
     reactRouter(),
