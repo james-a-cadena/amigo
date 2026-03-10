@@ -63,46 +63,4 @@
     "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsubWktYW1pZ28uY29tJA"
   },
 
-  "env": {
-    "preview": {
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "amigo-db-preview",
-          "database_id": "50434d75-216b-4463-87cd-7f0b90d5093c",
-          "migrations_dir": "packages/db/migrations"
-        }
-      ],
-      "kv_namespaces": [
-        {
-          "binding": "CACHE",
-          "id": "a302b7c698b54a47bb2a1b662e2aea9c"
-        }
-      ],
-      "durable_objects": {
-        "bindings": [
-          {
-            "name": "HOUSEHOLD",
-            "class_name": "HouseholdDO"
-          }
-        ]
-      },
-      "migrations": [
-        {
-          "tag": "v1",
-          "new_sqlite_classes": ["HouseholdDO"]
-        }
-      ],
-      "triggers": {
-        "crons": []
-      },
-      "routes": [
-        { "pattern": "dev.mi-amigo.com", "custom_domain": true }
-      ],
-      "vars": {
-        "APP_ENV": "preview",
-        "CLERK_PUBLISHABLE_KEY": "pk_test_ZW5oYW5jZWQtd2FsbGFieS00Mi5jbGVyay5hY2NvdW50cy5kZXYk"
-      }
-    }
-  }
 }
