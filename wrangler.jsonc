@@ -55,7 +55,7 @@
   // - Preview: dev.mi-amigo.com
 
   "triggers": {
-    "crons": ["0 3 * * 0"]
+    "crons": ["0 3 * * SUN"]
   },
 
   "vars": {

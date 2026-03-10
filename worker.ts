@@ -13,7 +13,7 @@ export default {
   fetch: server.fetch,
 
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
-    if (event.cron === "0 3 * * 0") {
+    if (event.cron === "0 3 * * SUN") {
       // Weekly audit log pruning (Sunday 3 AM UTC) — retain 90 days
       const db = getDb(env.DB);
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
