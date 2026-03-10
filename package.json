@@ -7,7 +7,7 @@
     "dev": "bash scripts/run-with-1password-environment.sh -- bash scripts/run-vite-with-dev-vars.sh vite dev",
     "dev:setup": "bun run db:migrate:local && bun run db:seed:local",
     "dev:reset": "rm -rf .wrangler/state && bun run dev:setup",
-    "build": "vite build",
+    "build": "react-router build",
     "deploy": "wrangler deploy",
     "db:generate": "cd packages/db && drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply amigo-db --local",
