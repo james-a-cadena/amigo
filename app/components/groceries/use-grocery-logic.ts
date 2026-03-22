@@ -1,4 +1,4 @@
-import { useOptimistic, useTransition, useCallback, useState } from "react";
+import { useOptimistic, useTransition, useCallback, useState, useRef, useEffect } from "react";
 import { useRevalidator } from "react-router";
 import type { GroceryTag } from "@amigo/db";
 import type { GroceryItemWithTags, OptimisticAction } from "./types";
@@ -91,7 +91,18 @@ export function useGroceryLogic({ items, allTags }: UseGroceryLogicOptions) {
   const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
   const [datePickerItemId, setDatePickerItemId] = useState<string | null>(null);
 
-  // WebSocket for real-time updates
+  // Track isPending in a ref so the WebSocket handler always reads the
+  // current value — the onMessage closure is captured at connection time
+  // by useWebSocket's connectRef, so a plain closure would go stale.
+  const isPendingRef = useRef(false);
+  useEffect(() => {
+    isPendingRef.current = isPending;
+  }, [isPending]);
+
+  // WebSocket for real-time updates from other household members.
+  // Skip revalidation while a transition is pending — the transition
+  // already revalidates on completion, so an extra revalidation from
+  // our own broadcast would race and briefly flash stale data.
   const onMessage = useCallback(
     (data: unknown) => {
       if (
@@ -100,13 +111,35 @@ export function useGroceryLogic({ items, allTags }: UseGroceryLogicOptions) {
         "type" in data &&
         (data as { type: string }).type === "GROCERY_UPDATE"
       ) {
-        revalidator.revalidate();
+        if (!isPendingRef.current) {
+          revalidator.revalidate();
+        }
       }
     },
     [revalidator]
   );
 
   useWebSocket({ onMessage });
+
+  // --- Helpers ---
+
+  // Runs a fetch mutation with error handling, always revalidating afterward
+  // so optimistic state reconciles even on network failure.
+  const runMutation = useCallback(
+    async (label: string, request: () => Promise<Response>) => {
+      try {
+        const res = await request();
+        if (!res.ok) {
+          console.error(`${label} failed: ${res.status}`);
+        }
+      } catch (error) {
+        console.error(`${label} failed: network error`, error);
+      } finally {
+        revalidator.revalidate();
+      }
+    },
+    [revalidator]
+  );
 
   // --- Actions ---
 
@@ -140,30 +173,32 @@ export function useGroceryLogic({ items, allTags }: UseGroceryLogicOptions) {
 
       startTransition(async () => {
         addOptimisticAction({ type: "add", item: tempItem });
-        await fetch("/api/groceries", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, tagIds }),
-        });
-        revalidator.revalidate();
+        await runMutation("Add grocery item", () =>
+          fetch("/api/groceries", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, tagIds }),
+          })
+        );
       });
     },
-    [allTags, addOptimisticAction, revalidator]
+    [allTags, addOptimisticAction, runMutation]
   );
 
   const toggleItem = useCallback(
     (id: string) => {
       startTransition(async () => {
         addOptimisticAction({ type: "toggle", id });
-        await fetch(`/api/groceries/${id}/toggle`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        revalidator.revalidate();
+        await runMutation("Toggle grocery item", () =>
+          fetch(`/api/groceries/${id}/toggle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          })
+        );
       });
     },
-    [addOptimisticAction, revalidator]
+    [addOptimisticAction, runMutation]
   );
 
   const toggleItemWithDate = useCallback(
@@ -177,73 +212,78 @@ export function useGroceryLogic({ items, allTags }: UseGroceryLogicOptions) {
     (id: string, purchasedAt: Date) => {
       startTransition(async () => {
         addOptimisticAction({ type: "toggle_with_date", id, purchasedAt });
-        await fetch(`/api/groceries/${id}/toggle`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ purchasedAt: purchasedAt.toISOString() }),
-        });
-        revalidator.revalidate();
+        await runMutation("Toggle grocery item with date", () =>
+          fetch(`/api/groceries/${id}/toggle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ purchasedAt: purchasedAt.toISOString() }),
+          })
+        );
       });
       setDatePickerItemId(null);
     },
-    [addOptimisticAction, revalidator]
+    [addOptimisticAction, runMutation]
   );
 
   const confirmUpdatePurchaseDate = useCallback(
     (id: string, purchasedAt: Date) => {
       startTransition(async () => {
         addOptimisticAction({ type: "update_purchase_date", id, purchasedAt });
-        await fetch(`/api/groceries/${id}/purchase-date`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ purchasedAt: purchasedAt.toISOString() }),
-        });
-        revalidator.revalidate();
+        await runMutation("Update purchase date", () =>
+          fetch(`/api/groceries/${id}/purchase-date`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ purchasedAt: purchasedAt.toISOString() }),
+          })
+        );
       });
       setDatePickerItemId(null);
     },
-    [addOptimisticAction, revalidator]
+    [addOptimisticAction, runMutation]
   );
 
   const deleteItem = useCallback(
     (id: string) => {
       startTransition(async () => {
         addOptimisticAction({ type: "delete", id });
-        await fetch(`/api/groceries/${id}`, { method: "DELETE" });
-        revalidator.revalidate();
+        await runMutation("Delete grocery item", () =>
+          fetch(`/api/groceries/${id}`, { method: "DELETE" })
+        );
       });
     },
-    [addOptimisticAction, revalidator]
+    [addOptimisticAction, runMutation]
   );
 
   const updateTags = useCallback(
     (id: string, tagIds: string[]) => {
       startTransition(async () => {
         addOptimisticAction({ type: "update_tags", id, tagIds, allTags });
-        await fetch(`/api/groceries/${id}/tags`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tagIds }),
-        });
-        revalidator.revalidate();
+        await runMutation("Update grocery item tags", () =>
+          fetch(`/api/groceries/${id}/tags`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tagIds }),
+          })
+        );
       });
     },
-    [allTags, addOptimisticAction, revalidator]
+    [allTags, addOptimisticAction, runMutation]
   );
 
   const editName = useCallback(
     (id: string, name: string) => {
       startTransition(async () => {
         addOptimisticAction({ type: "edit_name", id, name });
-        await fetch(`/api/groceries/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        });
-        revalidator.revalidate();
+        await runMutation("Edit grocery item name", () =>
+          fetch(`/api/groceries/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          })
+        );
       });
     },
-    [addOptimisticAction, revalidator]
+    [addOptimisticAction, runMutation]
   );
 
   const createTag = useCallback(
