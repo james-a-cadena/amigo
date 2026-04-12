@@ -135,7 +135,6 @@ export async function resolveSession(
         .where(
           and(
             eq(users.authId, clerkUserId),
-            eq(users.householdId, session.householdId),
             eq(users.householdId, householdForStale.id)
           )
         )
