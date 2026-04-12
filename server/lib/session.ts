@@ -111,7 +111,7 @@ export async function resolveSession(
       deletedAt: users.deletedAt,
     })
     .from(users)
-    .where(eq(users.authId, clerkUserId))
+    .where(and(eq(users.authId, clerkUserId), eq(users.householdId, household.id)))
     .get();
 
   if (existingUser?.deletedAt) {
@@ -122,7 +122,13 @@ export async function resolveSession(
   let user = await db
     .select()
     .from(users)
-    .where(and(eq(users.authId, clerkUserId), isNull(users.deletedAt)))
+    .where(
+      and(
+        eq(users.authId, clerkUserId),
+        eq(users.householdId, household.id),
+        isNull(users.deletedAt)
+      )
+    )
     .get();
 
   if (!user) {

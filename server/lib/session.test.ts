@@ -35,13 +35,14 @@ function createFakeDb(selectResults: unknown[]) {
   for (const result of selectResults) {
     getMock.mockResolvedValueOnce(result);
   }
+  const whereMock = vi.fn(() => ({
+    get: getMock,
+  }));
 
   return {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          get: getMock,
-        })),
+        where: whereMock,
       })),
     })),
     insert: vi.fn(() => ({
@@ -51,6 +52,7 @@ function createFakeDb(selectResults: unknown[]) {
         })),
       })),
     })),
+    whereMock,
   };
 }
 
@@ -151,5 +153,76 @@ describe("resolveSession", () => {
     expect(result).toEqual({ status: "revoked" });
     expect(mocks.createClerkClient).not.toHaveBeenCalled();
     expect(kv.put).not.toHaveBeenCalled();
+  });
+
+  it("ignores revoked users from other households when resolving a session", async () => {
+    const db = createFakeDb([
+      {
+        id: "house-2",
+      },
+      undefined,
+      {
+        id: "user-2",
+        householdId: "house-2",
+        role: "member",
+        email: "active@example.com",
+        name: "Active User",
+      },
+    ]);
+    mocks.getDb.mockReturnValue(db);
+
+    const kv = {
+      get: vi.fn().mockResolvedValue(null),
+      put: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+    } as unknown as KVNamespace;
+
+    const result = await resolveSession(
+      "clerk-user-1",
+      {} as D1Database,
+      kv,
+      "clerk-secret",
+      { orgId: "org-2" }
+    );
+
+    expect(result).toEqual({
+      status: "authenticated",
+      session: {
+        userId: "user-2",
+        householdId: "house-2",
+        orgId: "org-2",
+        role: "member",
+        email: "active@example.com",
+        name: "Active User",
+      },
+    });
+    expect(mocks.createClerkClient).not.toHaveBeenCalled();
+    expect(kv.put).toHaveBeenCalledWith(
+      "session:clerk-user-1:org-2",
+      JSON.stringify({
+        userId: "user-2",
+        householdId: "house-2",
+        orgId: "org-2",
+        role: "member",
+        email: "active@example.com",
+        name: "Active User",
+      }),
+      { expirationTtl: 86400 }
+    );
+    expect(db.whereMock).toHaveBeenNthCalledWith(2, {
+      type: "and",
+      args: [
+        { type: "eq", args: [{ name: "auth_id" }, "clerk-user-1"] },
+        { type: "eq", args: [{ name: "household_id" }, "house-2"] },
+      ],
+    });
+    expect(db.whereMock).toHaveBeenNthCalledWith(3, {
+      type: "and",
+      args: [
+        { type: "eq", args: [{ name: "auth_id" }, "clerk-user-1"] },
+        { type: "eq", args: [{ name: "household_id" }, "house-2"] },
+        { type: "isNull", arg: { name: "deleted_at" } },
+      ],
+    });
   });
 });

@@ -17,7 +17,7 @@ describe("withAudit", () => {
     vi.clearAllMocks();
   });
 
-  it("logs structured context when writing the audit log fails", async () => {
+  it("logs structured context and returns the committed mutation result when audit writes fail", async () => {
     const auditError = new Error("D1 unavailable");
     mocks.insertValues.mockRejectedValueOnce(auditError);
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -39,7 +39,7 @@ describe("withAudit", () => {
         },
         async () => ({ id: "txn-1" })
       )
-    ).rejects.toThrow("D1 unavailable");
+    ).resolves.toEqual({ id: "txn-1" });
 
     expect(consoleError).toHaveBeenCalledWith("Audit log write failed", {
       error: auditError,

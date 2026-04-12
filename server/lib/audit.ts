@@ -56,7 +56,7 @@ export async function withAudit<T>(
       operation: opts.operation,
       changedBy: opts.changedBy,
     });
-    throw error;
+    return result;
   }
   return result;
 }
