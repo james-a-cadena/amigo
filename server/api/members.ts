@@ -124,6 +124,13 @@ membersRoute.post("/transfer-ownership", async (c) => {
     throw new ActionError("User not found in household", "NOT_FOUND");
   }
 
+  if (!currentUser) {
+    throw new ActionError(
+      "Session inconsistency — please sign out and back in",
+      "UNAUTHORIZED"
+    );
+  }
+
   // Demote current owner → admin, promote new owner
   await db.batch([
     db.update(users).set({ role: "admin" }).where(eq(users.id, session.userId)),
@@ -131,7 +138,7 @@ membersRoute.post("/transfer-ownership", async (c) => {
   ]);
 
   await invalidateSessionCachesForHouseholdMembers(c.env, [
-    { authId: currentUser?.authId ?? null, orgId: session.orgId },
+    { authId: currentUser.authId, orgId: session.orgId },
     { authId: newOwner.authId, orgId: session.orgId },
   ]);
   await Promise.all([
