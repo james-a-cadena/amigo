@@ -37,14 +37,26 @@ export async function withAudit<T>(
   const newValues =
     typeof opts.newValues === "function" ? opts.newValues(result) : opts.newValues;
 
-  await db.insert(auditLogs).values({
-    householdId: opts.householdId,
-    tableName: opts.tableName,
-    recordId: opts.recordId,
-    operation: opts.operation,
-    oldValues: oldValues ? JSON.stringify(oldValues) : null,
-    newValues: newValues ? JSON.stringify(newValues) : null,
-    changedBy: opts.changedBy,
-  });
+  try {
+    await db.insert(auditLogs).values({
+      householdId: opts.householdId,
+      tableName: opts.tableName,
+      recordId: opts.recordId,
+      operation: opts.operation,
+      oldValues: oldValues ? JSON.stringify(oldValues) : null,
+      newValues: newValues ? JSON.stringify(newValues) : null,
+      changedBy: opts.changedBy,
+    });
+  } catch (error) {
+    console.error("Audit log write failed", {
+      error,
+      householdId: opts.householdId,
+      tableName: opts.tableName,
+      recordId: opts.recordId,
+      operation: opts.operation,
+      changedBy: opts.changedBy,
+    });
+    throw error;
+  }
   return result;
 }

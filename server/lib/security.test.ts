@@ -11,13 +11,17 @@ describe("security headers", () => {
       appEnv: "production",
       cspNonce: "nonce-123",
     });
+    const csp = headers["Content-Security-Policy-Report-Only"];
+    if (!csp) {
+      throw new Error("Expected CSP header to be defined");
+    }
+    const scriptSrc = csp
+      .split("; ")
+      .find((directive) => directive.startsWith("script-src"));
 
-    expect(headers["Content-Security-Policy-Report-Only"]).toContain(
-      "script-src 'self' 'nonce-nonce-123'"
-    );
-    expect(headers["Content-Security-Policy-Report-Only"]).toContain(
-      "frame-ancestors 'none'"
-    );
+    expect(csp).toContain("script-src 'self' 'nonce-nonce-123'");
+    expect(scriptSrc).toBe("script-src 'self' 'nonce-nonce-123'");
+    expect(csp).toContain("frame-ancestors 'none'");
     expect(headers["Strict-Transport-Security"]).toContain("max-age=31536000");
     expect(headers["X-Frame-Options"]).toBe("DENY");
   });

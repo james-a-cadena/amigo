@@ -15,7 +15,7 @@ function buildCspReportOnly(cspNonce: string): string {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    `script-src 'self' 'nonce-${cspNonce}' 'unsafe-inline' https:`,
+    `script-src 'self' 'nonce-${cspNonce}'`,
     "connect-src 'self' https: ws: wss:",
     "frame-src 'self' https:",
     "upgrade-insecure-requests",

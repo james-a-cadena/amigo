@@ -332,7 +332,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "audit_logs_household_id_idx": {
+          "name": "audit_logs_household_id_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "transactions_household_id_households_id_fk": {
           "name": "transactions_household_id_households_id_fk",
