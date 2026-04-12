@@ -479,7 +479,7 @@ groceriesRoute.post("/clear-old", async (c) => {
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-  const result = await db
+  const deletedRows = await db
     .delete(groceryItems)
     .where(
       and(
@@ -489,7 +489,24 @@ groceriesRoute.post("/clear-old", async (c) => {
         lt(groceryItems.purchasedAt, ninetyDaysAgo)
       )
     )
-    .returning({ id: groceryItems.id });
+    .returning();
 
-  return c.json({ deleted: result.length });
+  await Promise.allSettled(
+    deletedRows.map((row) =>
+      withAudit(
+        db,
+        {
+          householdId: session.householdId,
+          tableName: "grocery_items",
+          recordId: row.id,
+          operation: "DELETE",
+          oldValues: row,
+          changedBy: session.userId,
+        },
+        async () => row.id
+      )
+    )
+  );
+
+  return c.json({ deleted: deletedRows.length });
 });

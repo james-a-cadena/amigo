@@ -3,6 +3,11 @@ import type { AppSession } from "../env";
 import { getDb, users, households, eq, and, isNull } from "@amigo/db";
 import { getSessionCacheKey } from "./session-cache";
 
+/** Max age of a warm KV session before re-validating membership against D1. */
+const SESSION_WARM_PATH_TTL_MS = 60_000;
+
+type CachedSessionPayload = AppSession & { refreshedAt?: number };
+
 interface ClerkClaims {
   email?: string;
   name?: string;
@@ -46,7 +51,24 @@ export async function resolveSession(
   const cacheKey = getSessionCacheKey(clerkUserId, orgId);
   const cached = await kv.get(cacheKey, "json");
   if (cached) {
-    const session = cached as AppSession;
+    const payload = cached as CachedSessionPayload;
+    const refreshedAt = payload.refreshedAt ?? 0;
+    if (
+      refreshedAt > 0 &&
+      Date.now() - refreshedAt < SESSION_WARM_PATH_TTL_MS
+    ) {
+      const session: AppSession = {
+        userId: payload.userId,
+        householdId: payload.householdId,
+        orgId,
+        role: payload.role,
+        email: payload.email,
+        name: payload.name,
+      };
+      return { status: "authenticated", session };
+    }
+
+    const session = payload;
 
     // Re-hydrate the session from the current user row so role changes
     // and member removals take effect immediately even if KV is warm.
@@ -77,9 +99,13 @@ export async function resolveSession(
         email: currentUser.email,
         name: currentUser.name,
       };
+      const cachePayload: CachedSessionPayload = {
+        ...refreshedSession,
+        refreshedAt: Date.now(),
+      };
 
       try {
-        await kv.put(cacheKey, JSON.stringify(refreshedSession), {
+        await kv.put(cacheKey, JSON.stringify(cachePayload), {
           expirationTtl: 86400,
         });
       } catch (error) {
@@ -178,10 +204,14 @@ export async function resolveSession(
     email: user.email,
     name: user.name,
   };
+  const coldCachePayload: CachedSessionPayload = {
+    ...session,
+    refreshedAt: Date.now(),
+  };
 
   // Cache in KV (24h TTL)
   try {
-    await kv.put(cacheKey, JSON.stringify(session), {
+    await kv.put(cacheKey, JSON.stringify(coldCachePayload), {
       expirationTtl: 86400,
     });
   } catch (error) {

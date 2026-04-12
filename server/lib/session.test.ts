@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClerkClient: vi.fn(),
@@ -57,8 +57,57 @@ function createFakeDb(selectResults: unknown[]) {
 }
 
 describe("resolveSession", () => {
+  const fixedNow = 1_700_000_000_000;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(Date, "now").mockReturnValue(fixedNow);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("skips the warm-path D1 round-trip when the KV session was refreshed recently", async () => {
+    const db = createFakeDb([]);
+    mocks.getDb.mockReturnValue(db);
+
+    const kv = {
+      get: vi.fn().mockResolvedValue({
+        userId: "user-1",
+        householdId: "house-1",
+        orgId: "org-1",
+        role: "owner",
+        email: "cached@example.com",
+        name: "Cached User",
+        refreshedAt: fixedNow - 30_000,
+      }),
+      put: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+    } as unknown as KVNamespace;
+
+    const result = await resolveSession(
+      "clerk-user-1",
+      {} as D1Database,
+      kv,
+      "clerk-secret",
+      { orgId: "org-1" }
+    );
+
+    expect(result).toEqual({
+      status: "authenticated",
+      session: {
+        userId: "user-1",
+        householdId: "house-1",
+        orgId: "org-1",
+        role: "owner",
+        email: "cached@example.com",
+        name: "Cached User",
+      },
+    });
+    expect(db.select).not.toHaveBeenCalled();
+    expect(kv.put).not.toHaveBeenCalled();
+    expect(mocks.createClerkClient).not.toHaveBeenCalled();
   });
 
   it("refreshes cached sessions from the latest database role", async () => {
@@ -81,6 +130,7 @@ describe("resolveSession", () => {
         role: "owner",
         email: "stale@example.com",
         name: "Stale User",
+        refreshedAt: fixedNow - 61_000,
       }),
       put: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
@@ -114,6 +164,7 @@ describe("resolveSession", () => {
         role: "member",
         email: "fresh@example.com",
         name: "Fresh User",
+        refreshedAt: fixedNow,
       }),
       { expirationTtl: 86400 }
     );
@@ -141,6 +192,7 @@ describe("resolveSession", () => {
         role: "owner",
         email: "stale@example.com",
         name: "Stale User",
+        refreshedAt: fixedNow - 61_000,
       }),
       put: vi.fn().mockRejectedValue(kvError),
       delete: vi.fn().mockResolvedValue(undefined),
@@ -259,6 +311,7 @@ describe("resolveSession", () => {
         role: "owner",
         email: "stale@example.com",
         name: "Stale User",
+        refreshedAt: fixedNow - 61_000,
       }),
       put: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockRejectedValue(kvError),
@@ -371,6 +424,7 @@ describe("resolveSession", () => {
         role: "member",
         email: "active@example.com",
         name: "Active User",
+        refreshedAt: fixedNow,
       }),
       { expirationTtl: 86400 }
     );
@@ -427,5 +481,18 @@ describe("resolveSession", () => {
     });
     expect(db.whereMock).toHaveBeenCalledTimes(2);
     expect(mocks.createClerkClient).not.toHaveBeenCalled();
+    expect(kv.put).toHaveBeenCalledWith(
+      "session:clerk-user-1:org-1",
+      JSON.stringify({
+        userId: "user-1",
+        householdId: "house-1",
+        orgId: "org-1",
+        role: "member",
+        email: "user@example.com",
+        name: "Existing User",
+        refreshedAt: fixedNow,
+      }),
+      { expirationTtl: 86400 }
+    );
   });
 });
