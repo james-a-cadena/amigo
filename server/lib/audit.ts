@@ -16,7 +16,8 @@ export function buildAuditHistoryFilter(
   );
 }
 
-type AuditValue<T> = unknown | ((result: T) => unknown);
+type AuditSnapshot = string | number | boolean | null | Record<string, unknown> | unknown[];
+type AuditValue<T> = AuditSnapshot | ((result: T) => AuditSnapshot);
 
 export async function withAudit<T>(
   db: DrizzleD1,

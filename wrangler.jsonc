@@ -91,6 +91,9 @@
       ],
       "vars": {
         "APP_ENV": "preview",
+        // Intentionally reuses the production Clerk app for preview smoke tests until
+        // a dedicated preview Clerk application is provisioned; D1, KV, and DO data
+        // are still isolated from production in this environment.
         "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsubWktYW1pZ28uY29tJA"
       }
     }

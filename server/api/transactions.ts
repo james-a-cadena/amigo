@@ -113,7 +113,7 @@ transactionsRoute.post("/", async (c) => {
       tableName: "transactions",
       recordId: transactionId,
       operation: "INSERT",
-      newValues: (result: typeof transaction) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
@@ -216,7 +216,7 @@ transactionsRoute.patch("/:id", async (c) => {
       recordId: id,
       operation: "UPDATE",
       oldValues: existing,
-      newValues: (result: typeof updated) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
@@ -290,7 +290,7 @@ transactionsRoute.delete("/:id", async (c) => {
       recordId: id,
       operation: "DELETE",
       oldValues: existing,
-      newValues: (result: typeof deleted) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>

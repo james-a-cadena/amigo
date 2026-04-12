@@ -87,7 +87,7 @@ groceriesRoute.post("/", async (c) => {
       tableName: "grocery_items",
       recordId: itemId,
       operation: "INSERT",
-      newValues: (result: typeof item) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
@@ -174,7 +174,7 @@ groceriesRoute.post("/:id/toggle", async (c) => {
       recordId: id,
       operation: "UPDATE",
       oldValues: existing,
-      newValues: (result: typeof updated) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
@@ -237,7 +237,7 @@ groceriesRoute.patch("/:id", async (c) => {
       recordId: id,
       operation: "UPDATE",
       oldValues: existing,
-      newValues: (result: typeof updated) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
@@ -360,7 +360,7 @@ groceriesRoute.patch("/:id/purchase-date", async (c) => {
       recordId: id,
       operation: "UPDATE",
       oldValues: existing,
-      newValues: (result: typeof updated) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
@@ -425,7 +425,7 @@ groceriesRoute.delete("/:id", async (c) => {
       recordId: id,
       operation: "DELETE",
       oldValues: existing,
-      newValues: (result: typeof deleted) => result,
+      newValues: (result) => result,
       changedBy: session.userId,
     },
     async () =>
