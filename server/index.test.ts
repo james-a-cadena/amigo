@@ -17,13 +17,13 @@ vi.mock("./middleware/auth", () => ({
   },
 }));
 
-vi.mock("./lib/security", () => ({
-  buildSecurityHeaders: () => ({
-    "content-security-policy": "default-src 'self'",
-    "x-frame-options": "DENY",
-  }),
-  createCspNonce: () => "nonce-123",
-}));
+vi.mock("./lib/security", async () => {
+  const actual = await vi.importActual<typeof import("./lib/security")>("./lib/security");
+  return {
+    ...actual,
+    createCspNonce: () => "nonce-123",
+  };
+});
 
 vi.mock("./api/health", () => {
   const route = new Hono();
@@ -58,7 +58,12 @@ describe("app security headers", () => {
     const response = await app.request("/api/boom", {}, env);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("content-security-policy")).toBe("default-src 'self'");
+    expect(response.headers.get("content-security-policy-report-only")).toContain(
+      "script-src 'self' 'nonce-nonce-123'"
+    );
     expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(response.headers.get("strict-transport-security")).toBe(
+      "max-age=31536000; includeSubDomains; preload"
+    );
   });
 });

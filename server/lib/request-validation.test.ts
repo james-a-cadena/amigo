@@ -3,12 +3,13 @@ import { ActionError } from "./errors";
 import {
   DEFAULT_TRANSACTIONS_LIMIT,
   DEFAULT_TRANSACTIONS_PAGE,
+  MAX_TRANSACTIONS_LIMIT,
   parseCalendarQuery,
   parseTransactionsListQuery,
 } from "./request-validation";
 
 describe("parseTransactionsListQuery", () => {
-  it("clamps pagination values and rejects invalid type filters", () => {
+  it("rejects invalid type filters", () => {
     expect(() =>
       parseTransactionsListQuery({
         page: "0",
@@ -21,6 +22,19 @@ describe("parseTransactionsListQuery", () => {
         code: "VALIDATION_ERROR",
       }) satisfies Partial<ActionError>
     );
+  });
+
+  it("clamps out-of-range pagination values", () => {
+    expect(
+      parseTransactionsListQuery({
+        page: "0",
+        limit: "999",
+      })
+    ).toEqual({
+      page: DEFAULT_TRANSACTIONS_PAGE,
+      limit: MAX_TRANSACTIONS_LIMIT,
+      type: undefined,
+    });
   });
 
   it("falls back to defaults for unparsable values", () => {
