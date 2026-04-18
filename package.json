@@ -9,7 +9,6 @@
     "dev:reset": "rm -rf .wrangler/state && bun run dev:setup",
     "build": "react-router build",
     "deploy": "wrangler d1 migrations apply amigo-db --remote && wrangler deploy --env=\"\"",
-    "deploy:preview": "wrangler d1 migrations apply amigo-db-preview --remote --env preview && wrangler deploy --env preview",
     "db:generate": "cd packages/db && drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply amigo-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply amigo-db --remote",
