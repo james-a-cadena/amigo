@@ -14,7 +14,6 @@ import {
 } from "@amigo/db";
 import type { HonoEnv } from "../env";
 import { enforceRateLimit, ROUTE_RATE_LIMITS } from "../middleware/rate-limit";
-import { ActionError } from "../lib/errors";
 import { parseCalendarQuery } from "../lib/request-validation";
 
 export interface CalendarEvent {
@@ -125,15 +124,10 @@ export const calendarRoute = new Hono<HonoEnv>().get("/", async (c) => {
     ROUTE_RATE_LIMITS.calendar.list
   );
 
-  let parsedQuery: { year: number; month: number };
-  try {
-    parsedQuery = parseCalendarQuery({
-      year: c.req.query("year"),
-      month: c.req.query("month"),
-    });
-  } catch {
-    throw new ActionError("Valid year and month are required", "VALIDATION_ERROR");
-  }
+  const parsedQuery = parseCalendarQuery({
+    year: c.req.query("year"),
+    month: c.req.query("month"),
+  });
   const year = parsedQuery.year;
   const month = parsedQuery.month - 1; // Convert 1-indexed API param to 0-indexed for JS Date
 

@@ -155,5 +155,7 @@ describe("withAudit", () => {
       operation: "DELETE",
       changedBy: "user-1",
     });
+
+    consoleError.mockRestore();
   });
 });

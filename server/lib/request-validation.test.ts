@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ActionError } from "./errors";
 import {
   DEFAULT_TRANSACTIONS_LIMIT,
   DEFAULT_TRANSACTIONS_PAGE,
@@ -14,7 +15,12 @@ describe("parseTransactionsListQuery", () => {
         limit: "999",
         type: "bogus",
       })
-    ).toThrow('Invalid type filter');
+    ).toThrowError(
+      expect.objectContaining({
+        message: 'Invalid type filter; expected "income" or "expense".',
+        code: "VALIDATION_ERROR",
+      }) satisfies Partial<ActionError>
+    );
   });
 
   it("falls back to defaults for unparsable values", () => {
@@ -54,6 +60,11 @@ describe("parseCalendarQuery", () => {
   });
 
   it("rejects out-of-range months", () => {
-    expect(() => parseCalendarQuery({ year: "2026", month: "13" })).toThrow();
+    expect(() => parseCalendarQuery({ year: "2026", month: "13" })).toThrowError(
+      expect.objectContaining({
+        message: "Valid year and month are required",
+        code: "VALIDATION_ERROR",
+      }) satisfies Partial<ActionError>
+    );
   });
 });

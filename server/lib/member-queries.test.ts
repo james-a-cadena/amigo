@@ -55,4 +55,66 @@ describe("getTransferOwnershipUsers", () => {
       },
     });
   });
+
+  it("returns undefined for a missing new owner without skipping the current user lookup", async () => {
+    const currentUser = { id: "user-1", authId: "auth-1" };
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(currentUser);
+    const db = {
+      query: {
+        users: {
+          findFirst,
+        },
+      },
+    };
+
+    await expect(
+      getTransferOwnershipUsers(db as never, "house-1", "user-1", "user-2")
+    ).resolves.toEqual([undefined, currentUser]);
+
+    expect(findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns undefined for a missing current user after prefetching the new owner", async () => {
+    const newOwner = { id: "user-2", authId: "auth-2" };
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce(newOwner)
+      .mockResolvedValueOnce(undefined);
+    const db = {
+      query: {
+        users: {
+          findFirst,
+        },
+      },
+    };
+
+    await expect(
+      getTransferOwnershipUsers(db as never, "house-1", "user-1", "user-2")
+    ).resolves.toEqual([newOwner, undefined]);
+
+    expect(findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns undefined for both users when neither lookup finds an active household member", async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    const db = {
+      query: {
+        users: {
+          findFirst,
+        },
+      },
+    };
+
+    await expect(
+      getTransferOwnershipUsers(db as never, "house-1", "user-1", "user-2")
+    ).resolves.toEqual([undefined, undefined]);
+
+    expect(findFirst).toHaveBeenCalledTimes(2);
+  });
 });

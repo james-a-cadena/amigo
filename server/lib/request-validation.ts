@@ -70,5 +70,10 @@ export function parseCalendarQuery(query: {
   year?: string;
   month?: string;
 }) {
-  return calendarQuerySchema.parse(query);
+  const parsed = calendarQuerySchema.safeParse(query);
+  if (!parsed.success) {
+    throw new ActionError("Valid year and month are required", "VALIDATION_ERROR");
+  }
+
+  return parsed.data;
 }
