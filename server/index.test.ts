@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
+import type { Env } from "./env";
 
 vi.mock("@hono/clerk-auth", () => ({
   clerkMiddleware: () => async (_c: unknown, next: () => Promise<void>) => {
@@ -51,7 +52,10 @@ import app from "./index";
 
 describe("app security headers", () => {
   it("applies security headers to error responses", async () => {
-    const response = await app.request("/api/boom", {}, { APP_ENV: "production" } as never);
+    const env = {
+      APP_ENV: "production",
+    } satisfies Pick<Env, "APP_ENV">;
+    const response = await app.request("/api/boom", {}, env);
 
     expect(response.status).toBe(500);
     expect(response.headers.get("content-security-policy")).toBe("default-src 'self'");

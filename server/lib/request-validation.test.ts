@@ -36,6 +36,19 @@ describe("parseTransactionsListQuery", () => {
     });
   });
 
+  it("falls back to defaults for malformed numeric strings", () => {
+    expect(
+      parseTransactionsListQuery({
+        page: "12abc",
+        limit: "25.5",
+      })
+    ).toEqual({
+      page: DEFAULT_TRANSACTIONS_PAGE,
+      limit: DEFAULT_TRANSACTIONS_LIMIT,
+      type: undefined,
+    });
+  });
+
   it("preserves valid pagination and type filters", () => {
     expect(
       parseTransactionsListQuery({

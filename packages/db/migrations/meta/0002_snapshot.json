@@ -480,15 +480,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "audit_logs_household_id_idx": {
-          "name": "audit_logs_household_id_idx",
-          "columns": [
-            "household_id"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "grocery_items_household_id_households_id_fk": {
           "name": "grocery_items_household_id_households_id_fk",
@@ -1155,7 +1147,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "audit_logs_household_id_idx": {
+          "name": "audit_logs_household_id_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

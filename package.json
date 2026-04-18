@@ -15,7 +15,7 @@
     "db:seed:local": "wrangler d1 execute amigo-db --local --file=packages/db/seed.sql",
     "db:studio": "cd packages/db && drizzle-kit studio",
     "typegen": "react-router typegen",
-    "typecheck": "react-router typegen && tsc --noEmit",
+    "typecheck": "bun run typegen && tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"

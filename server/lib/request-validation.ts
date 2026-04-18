@@ -12,7 +12,11 @@ function clampInt(
   max: number
 ): number {
   const parsed =
-    typeof value === "number" ? value : value ? Number.parseInt(value, 10) : Number.NaN;
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^[+-]?\d+$/.test(value.trim())
+        ? Number(value)
+        : Number.NaN;
   if (!Number.isFinite(parsed)) {
     return fallback;
   }
