@@ -21,7 +21,7 @@ vi.mock("./lib/security", async () => {
   const actual = await vi.importActual<typeof import("./lib/security")>("./lib/security");
   return {
     ...actual,
-    createCspNonce: () => "nonce-123",
+    createCspNonce: () => "123",
   };
 });
 
@@ -59,7 +59,7 @@ describe("app security headers", () => {
 
     expect(response.status).toBe(500);
     expect(response.headers.get("content-security-policy-report-only")).toContain(
-      "script-src 'self' 'nonce-nonce-123'"
+      "script-src 'self' 'nonce-123'"
     );
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     expect(response.headers.get("strict-transport-security")).toBe(

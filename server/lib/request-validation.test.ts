@@ -10,18 +10,20 @@ import {
 
 describe("parseTransactionsListQuery", () => {
   it("rejects invalid type filters", () => {
-    expect(() =>
+    try {
       parseTransactionsListQuery({
         page: "0",
         limit: "999",
         type: "bogus",
-      })
-    ).toThrowError(
-      expect.objectContaining({
+      });
+      throw new Error("Expected parseTransactionsListQuery to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ActionError);
+      expect(error).toMatchObject({
         message: 'Invalid type filter; expected "income" or "expense".',
         code: "VALIDATION_ERROR",
-      }) satisfies Partial<ActionError>
-    );
+      } satisfies Partial<ActionError>);
+    }
   });
 
   it("clamps out-of-range pagination values", () => {
@@ -76,6 +78,34 @@ describe("parseTransactionsListQuery", () => {
       type: "expense",
     });
   });
+
+  it("preserves valid pagination and an income type filter", () => {
+    expect(
+      parseTransactionsListQuery({
+        page: "4",
+        limit: "25",
+        type: "income",
+      })
+    ).toEqual({
+      page: 4,
+      limit: 25,
+      type: "income",
+    });
+  });
+
+  it("treats an empty type query as absent", () => {
+    expect(
+      parseTransactionsListQuery({
+        page: "2",
+        limit: "10",
+        type: "",
+      })
+    ).toEqual({
+      page: 2,
+      limit: 10,
+      type: undefined,
+    });
+  });
 });
 
 describe("parseCalendarQuery", () => {
@@ -86,12 +116,38 @@ describe("parseCalendarQuery", () => {
     });
   });
 
+  it("accepts boundary month values", () => {
+    expect(parseCalendarQuery({ year: "2026", month: "1" })).toEqual({
+      year: 2026,
+      month: 1,
+    });
+    expect(parseCalendarQuery({ year: "2026", month: "12" })).toEqual({
+      year: 2026,
+      month: 12,
+    });
+  });
+
   it("rejects out-of-range months", () => {
-    expect(() => parseCalendarQuery({ year: "2026", month: "13" })).toThrowError(
-      expect.objectContaining({
+    try {
+      parseCalendarQuery({ year: "2026", month: "13" });
+      throw new Error("Expected parseCalendarQuery to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ActionError);
+      expect(error).toMatchObject({
         message: "Valid year and month are required",
         code: "VALIDATION_ERROR",
-      }) satisfies Partial<ActionError>
-    );
+      } satisfies Partial<ActionError>);
+    }
+  });
+
+  it("rejects non-numeric or missing calendar params", () => {
+    for (const query of [{ year: "abc", month: "4" }, { year: "2026", month: "0" }, {}, { year: "2026" }]) {
+      expect(() => parseCalendarQuery(query)).toThrowError(
+        expect.objectContaining({
+          message: "Valid year and month are required",
+          code: "VALIDATION_ERROR",
+        }) satisfies Partial<ActionError>
+      );
+    }
   });
 });
