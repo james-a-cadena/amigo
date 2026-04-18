@@ -2,11 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
-# Deployments are handled by Cloudflare Git integration (Workers Builds)
+# CI only. Deployments require either Cloudflare Workers Builds to be configured
+# for this repo/branch or a separate deploy workflow.
 
 jobs:
   lint-and-typecheck:
