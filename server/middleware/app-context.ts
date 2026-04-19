@@ -20,30 +20,26 @@ export const appContextMiddleware: MiddlewareFunction<Response> = async (
   app.sessionStatus = "unauthenticated";
   delete app.session;
 
-  try {
-    const auth = await getAuth(args as Parameters<typeof getAuth>[0]);
-    const identity = getClerkIdentity(auth);
+  const auth = await getAuth(args as Parameters<typeof getAuth>[0]);
+  const identity = getClerkIdentity(auth);
 
-    if (identity) {
-      const result = await resolveSession(
-        identity.userId,
-        env.DB,
-        env.CACHE,
-        env.CLERK_SECRET_KEY,
-        {
-          email: identity.email,
-          name: identity.name,
-          orgId: identity.orgId,
-        }
-      );
+  if (identity) {
+    const result = await resolveSession(
+      identity.userId,
+      env.DB,
+      env.CACHE,
+      env.CLERK_SECRET_KEY,
+      {
+        email: identity.email,
+        name: identity.name,
+        orgId: identity.orgId,
+      }
+    );
 
-      app.cspNonce = cspNonce;
-      app.sessionStatus = result.status;
-      app.session =
-        result.status === "authenticated" ? result.session : undefined;
-    }
-  } catch {
-    app.cspNonce = cspNonce;
+    app.sessionStatus = result.status;
+    app.session =
+      result.status === "authenticated" ? result.session : undefined;
+  } else {
     app.sessionStatus = "unauthenticated";
     delete app.session;
   }

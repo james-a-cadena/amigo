@@ -47,7 +47,7 @@ Migrate amigo from a self-hosted Docker + Next.js + PostgreSQL + Valkey + Authen
 
 All requests hit one Cloudflare Worker. `worker.ts` owns the platform entrypoint, routes `/ws` upgrades and scheduled jobs directly, and delegates application HTTP handling to React Router's `createRequestHandler`.
 
-```
+```text
                     Cloudflare Edge
                     ┌─────────────────────────────────────────┐
                     │                                         │

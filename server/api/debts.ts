@@ -22,7 +22,7 @@ const currencySchema = z.enum(["CAD", "USD", "EUR", "GBP", "MXN"]).optional();
 const loanSchema = z
   .object({
     type: z.literal("LOAN"),
-    name: z.string().min(1),
+    name: z.string().trim().min(1),
     loanAmount: z.number().positive(),
     totalPaid: z.number().min(0),
     currency: currencySchema,
@@ -36,7 +36,7 @@ const loanSchema = z
 const creditCardSchema = z
   .object({
     type: z.literal("CREDIT_CARD"),
-    name: z.string().min(1),
+    name: z.string().trim().min(1),
     creditLimit: z.number().positive(),
     availableCredit: z.number().min(0),
     currency: currencySchema,
@@ -82,7 +82,12 @@ export const handleDebtsRequest: ApiHandler = async ({
   request,
   session,
 }) => {
-  const [id] = getSplatSegments(params);
+  const splatSegments = getSplatSegments(params);
+  if (splatSegments.length > 1) {
+    throw new ActionError("Debt not found", "NOT_FOUND");
+  }
+
+  const [id] = splatSegments;
   const db = getDb(env.DB);
 
   if (request.method === "GET" && !id) {
@@ -205,7 +210,8 @@ export const handleDebtsRequest: ApiHandler = async ({
       .where(
         and(
           eq(debts.id, id),
-          scopeToHousehold(debts.householdId, session!.householdId)
+          scopeToHousehold(debts.householdId, session!.householdId),
+          isNull(debts.deletedAt)
         )
       )
       .returning()
@@ -256,7 +262,8 @@ export const handleDebtsRequest: ApiHandler = async ({
       .where(
         and(
           eq(debts.id, id),
-          scopeToHousehold(debts.householdId, session!.householdId)
+          scopeToHousehold(debts.householdId, session!.householdId),
+          isNull(debts.deletedAt)
         )
       )
       .returning()

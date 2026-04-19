@@ -31,13 +31,33 @@ const updateTagSchema = z.object({
   color: z.enum(TAG_COLORS),
 });
 
+async function broadcastTagChange(
+  env: Parameters<typeof broadcastToHousehold>[0],
+  householdId: string,
+  action: "tag_create" | "tag_update" | "tag_delete"
+) {
+  try {
+    await broadcastToHousehold(env, householdId, {
+      type: "GROCERY_UPDATE",
+      action,
+    });
+  } catch (error) {
+    console.error("Tag broadcast failed", { error, householdId, action });
+  }
+}
+
 export const handleTagsRequest: ApiHandler = async ({
   env,
   params,
   request,
   session,
 }) => {
-  const [id] = getSplatSegments(params);
+  const splatSegments = getSplatSegments(params);
+  if (splatSegments.length > 1) {
+    throw new ActionError("Tag not found", "NOT_FOUND");
+  }
+
+  const [id] = splatSegments;
   const db = getDb(env.DB);
 
   if (request.method === "GET" && !id) {
@@ -86,10 +106,7 @@ export const handleTagsRequest: ApiHandler = async ({
       .returning()
       .get();
 
-    await broadcastToHousehold(env, session!.householdId, {
-      type: "GROCERY_UPDATE",
-      action: "tag_create",
-    });
+    await broadcastTagChange(env, session!.householdId, "tag_create");
 
     return Response.json(tag, { status: 201 });
   }
@@ -142,10 +159,7 @@ export const handleTagsRequest: ApiHandler = async ({
       .returning()
       .get();
 
-    await broadcastToHousehold(env, session!.householdId, {
-      type: "GROCERY_UPDATE",
-      action: "tag_update",
-    });
+    await broadcastTagChange(env, session!.householdId, "tag_update");
 
     return Response.json(updated);
   }
@@ -172,10 +186,7 @@ export const handleTagsRequest: ApiHandler = async ({
       throw new ActionError("Tag not found", "NOT_FOUND");
     }
 
-    await broadcastToHousehold(env, session!.householdId, {
-      type: "GROCERY_UPDATE",
-      action: "tag_delete",
-    });
+    await broadcastTagChange(env, session!.householdId, "tag_delete");
 
     return Response.json(deleted);
   }
