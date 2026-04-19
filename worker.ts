@@ -6,12 +6,13 @@ import { HouseholdDO } from "./server/durable-objects/household";
 import { getDb, auditLogs, lt } from "@amigo/db";
 import type { Env } from "./server/env";
 import { getClerkIdentity } from "./server/lib/clerk";
+import { getRequestHandlerMode } from "./server/lib/request-handler-mode";
 import { buildSecurityHeaders } from "./server/lib/security";
 import { resolveSession } from "./server/lib/session";
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
-  import.meta.env.MODE
+  getRequestHandlerMode(import.meta)
 );
 
 export default {
