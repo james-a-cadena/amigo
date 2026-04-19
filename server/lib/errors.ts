@@ -1,6 +1,7 @@
 type ErrorCode =
   | "UNAUTHORIZED"
   | "VALIDATION_ERROR"
+  | "INTERNAL_ERROR"
   | "RATE_LIMITED"
   | "PERMISSION_DENIED"
   | "NOT_FOUND";

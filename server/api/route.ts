@@ -113,6 +113,7 @@ function mapApiError(error: unknown) {
     const status = {
       UNAUTHORIZED: 401,
       VALIDATION_ERROR: 400,
+      INTERNAL_ERROR: 500,
       RATE_LIMITED: 429,
       PERMISSION_DENIED: 403,
       NOT_FOUND: 404,

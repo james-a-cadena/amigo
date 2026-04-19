@@ -125,7 +125,7 @@ export const handleRestoreRequest: ApiHandler = async ({
       logServerError("restore-account", error, {
         userId: restoreData.userId,
       });
-      throw new ActionError("Failed to restore account", "VALIDATION_ERROR");
+      throw new ActionError("Failed to restore account", "INTERNAL_ERROR");
     }
   }
 
@@ -228,7 +228,7 @@ export const handleRestoreRequest: ApiHandler = async ({
       logServerError("fresh-start-account", error, {
         userId: restoreData.userId,
       });
-      throw new ActionError("Failed to start fresh", "VALIDATION_ERROR");
+      throw new ActionError("Failed to start fresh", "INTERNAL_ERROR");
     }
   }
 
