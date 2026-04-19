@@ -63,14 +63,14 @@ function calculateNextRunDate(
       next.setDate(next.getDate() + interval * 7);
       break;
     case "MONTHLY":
-      next.setMonth(next.getMonth() + interval);
-      if (dayOfMonth) {
+      {
+        const desiredDay = dayOfMonth ?? next.getUTCDate();
+        next.setUTCDate(1);
+        next.setUTCMonth(next.getUTCMonth() + interval);
         const lastDay = new Date(
-          next.getFullYear(),
-          next.getMonth() + 1,
-          0
-        ).getDate();
-        next.setDate(Math.min(dayOfMonth, lastDay));
+          Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)
+        ).getUTCDate();
+        next.setUTCDate(Math.min(desiredDay, lastDay));
       }
       break;
     case "YEARLY":
@@ -125,32 +125,14 @@ function buildRecurringOccurrenceTransactionId(ruleId: string, runDate: string) 
 function isSqlitePrimaryKeyConflict(error: unknown) {
   return (
     error instanceof Error &&
-    /UNIQUE constraint failed: transactions\.id|SQLITE_CONSTRAINT/i.test(
-      error.message
-    )
+    /UNIQUE constraint failed: transactions\.id|PRIMARY KEY/i.test(error.message)
   );
 }
 
 async function advanceRecurringRuleIfCurrent(
   db: ReturnType<typeof getDb>,
-  rule: RecurringRule,
-  todayStr: string
+  rule: RecurringRule
 ) {
-  if (rule.endDate && rule.endDate < todayStr) {
-    return await db
-      .update(recurringTransactions)
-      .set({ active: false })
-      .where(
-        and(
-          eq(recurringTransactions.id, rule.id),
-          eq(recurringTransactions.active, true),
-          eq(recurringTransactions.nextRunDate, rule.nextRunDate)
-        )
-      )
-      .returning({ id: recurringTransactions.id })
-      .get();
-  }
-
   const nextRunDate = calculateNextRunDate(
     rule.frequency,
     rule.interval,
@@ -492,7 +474,7 @@ export const handleRecurringRequest: ApiHandler = async ({
         }
       }
 
-      const advanced = await advanceRecurringRuleIfCurrent(db, rule, todayStr);
+      const advanced = await advanceRecurringRuleIfCurrent(db, rule);
       if (!advanced) {
         continue;
       }

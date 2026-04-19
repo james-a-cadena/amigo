@@ -24,6 +24,12 @@ export const handleRestoreRequest: ApiHandler = async ({
   const path = getSplatPath(params);
 
   if (request.method === "GET" && path === "pending") {
+    await enforceRateLimit(
+      env.CACHE,
+      `pending:${request.headers.get("cf-connecting-ip") ?? "unknown"}`,
+      ROUTE_RATE_LIMITS.restore.pending
+    );
+
     const token = new URL(request.url).searchParams.get("token");
     if (!token) {
       return Response.json({ pending: false });
