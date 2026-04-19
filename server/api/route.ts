@@ -132,6 +132,13 @@ function mapApiError(error: unknown) {
     );
   }
 
+  if (error instanceof SyntaxError) {
+    return Response.json(
+      { error: "Invalid JSON", code: "VALIDATION_ERROR" },
+      { status: 400 }
+    );
+  }
+
   console.error("Unhandled API error:", error);
   return Response.json({ error: "Internal server error" }, { status: 500 });
 }
