@@ -246,8 +246,19 @@ export const handleRestoreRequest: ApiHandler = async ({
     return Response.json({ success: true });
   }
 
+  const allowedMethods =
+    path === "pending"
+      ? "GET"
+      : path === "restore" || path === "fresh-start" || path === "cancel"
+        ? "POST"
+        : null;
+
+  if (!allowedMethods) {
+    return new Response(null, { status: 404 });
+  }
+
   return new Response(null, {
     status: 405,
-    headers: { Allow: "GET, POST" },
+    headers: { Allow: allowedMethods },
   });
 };
