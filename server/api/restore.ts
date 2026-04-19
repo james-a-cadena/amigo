@@ -14,6 +14,13 @@ import { ActionError, logSecurityEvent, logServerError } from "../lib/errors";
 import { enforceRateLimit, ROUTE_RATE_LIMITS } from "../middleware/rate-limit";
 import { getSplatPath, type ApiHandler } from "./route";
 
+type RestoreData = {
+  userId: string;
+  householdId: string;
+  email: string;
+  name: string | null;
+};
+
 const RESTORE_TOKEN_PREFIX = "restore:";
 
 export const handleRestoreRequest: ApiHandler = async ({
@@ -58,14 +65,7 @@ export const handleRestoreRequest: ApiHandler = async ({
     const restoreData = (await env.CACHE.get(
       `${RESTORE_TOKEN_PREFIX}${body.token}`,
       "json"
-    )) as
-      | {
-          userId: string;
-          householdId: string;
-          email: string;
-          name: string | null;
-        }
-      | null;
+    )) as RestoreData | null;
 
     if (!restoreData) {
       throw new ActionError("Restore session expired", "NOT_FOUND");
@@ -144,14 +144,7 @@ export const handleRestoreRequest: ApiHandler = async ({
     const restoreData = (await env.CACHE.get(
       `${RESTORE_TOKEN_PREFIX}${body.token}`,
       "json"
-    )) as
-      | {
-          userId: string;
-          householdId: string;
-          email: string;
-          name: string | null;
-        }
-      | null;
+    )) as RestoreData | null;
 
     if (!restoreData) {
       throw new ActionError("Restore session expired", "NOT_FOUND");

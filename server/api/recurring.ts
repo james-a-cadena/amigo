@@ -6,6 +6,7 @@ import {
   lte,
   recurringTransactions,
   scopeToHousehold,
+  sql,
   transactions,
 } from "@amigo/db";
 import type { CurrencyCode } from "@amigo/db";
@@ -125,7 +126,9 @@ function buildRecurringOccurrenceTransactionId(ruleId: string, runDate: string) 
 function isSqlitePrimaryKeyConflict(error: unknown) {
   return (
     error instanceof Error &&
-    /UNIQUE constraint failed: transactions\.id|PRIMARY KEY/i.test(error.message)
+    /(?:UNIQUE constraint failed: transactions\.id|PRIMARY KEY constraint failed: transactions\.id)/i.test(
+      error.message
+    )
   );
 }
 
@@ -379,21 +382,9 @@ export const handleRecurringRequest: ApiHandler = async ({
       ROUTE_RATE_LIMITS.recurring.toggle
     );
 
-    const existing = await db.query.recurringTransactions.findFirst({
-      where: and(
-        eq(recurringTransactions.id, id),
-        scopeToHousehold(recurringTransactions.householdId, session!.householdId),
-        eq(recurringTransactions.userId, session!.userId)
-      ),
-    });
-
-    if (!existing) {
-      throw new ActionError("Recurring rule not found", "NOT_FOUND");
-    }
-
     const rule = await db
       .update(recurringTransactions)
-      .set({ active: !existing.active })
+      .set({ active: sql`NOT ${recurringTransactions.active}` })
       .where(
         and(
           eq(recurringTransactions.id, id),
@@ -403,6 +394,10 @@ export const handleRecurringRequest: ApiHandler = async ({
       )
       .returning()
       .get();
+
+    if (!rule) {
+      throw new ActionError("Recurring rule not found", "NOT_FOUND");
+    }
 
     await broadcastToHousehold(env, session!.householdId, {
       type: "RECURRING_UPDATE",
